@@ -3,7 +3,7 @@
 # =====================================================================
 # Stage 1 — builder: instala deps en un prefijo aislado
 # =====================================================================
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -22,7 +22,7 @@ RUN pip install --prefix=/install -r requirements.txt
 # =====================================================================
 # Stage 2 — runtime: imagen mínima con usuario no-root
 # =====================================================================
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 LABEL org.opencontainers.image.title="trade-pipeline" \
       org.opencontainers.image.description="Trade pipeline (Polars + FastAPI + Patito)" \
