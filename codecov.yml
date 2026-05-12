@@ -1,0 +1,40 @@
+# =====================================================================
+# Codecov configuration
+# Docs: https://docs.codecov.com/docs/codecovyml-reference
+# =====================================================================
+
+codecov:
+  require_ci_to_pass: yes      # only count when CI passed
+  notify:
+    wait_for_ci: yes
+
+coverage:
+  precision: 2                 # show 2 decimals
+  round: down
+  range: "70...95"             # red <70%, yellow 70-95%, green >95%
+  status:
+    project:
+      default:
+        target: 75%            # matches pyproject.toml fail_under
+        threshold: 1%          # don't fail a PR for <1% drop
+        if_ci_failed: error
+    patch:
+      default:
+        target: 80%            # new/changed lines must cover 80%
+        threshold: 5%
+
+# PR comment with diff + tree
+comment:
+  layout: "header, diff, flags, files, footer"
+  behavior: default
+  require_changes: false       # comment even if coverage unchanged
+  require_base: no
+  require_head: yes
+
+# Files that should not count for coverage
+ignore:
+  - "tests/**"
+  - "**/__init__.py"
+  - "conftest.py"
+  - "outputs/**"
+  - "docs/**"
