@@ -6,7 +6,7 @@ ruff>=0.6.0
 
 # Security scanners
 bandit[toml]>=1.7.10
-semgrep>=1.90
+semgrep>=1.162.0
 
 # Test helpers
 pytest-asyncio>=0.23
