@@ -1,0 +1,10 @@
+"""
+conftest.py raíz: asegura que `src` sea importable cuando pytest corre
+desde el root del proyecto.
+"""
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).parent.resolve()
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
