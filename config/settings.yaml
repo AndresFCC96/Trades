@@ -1,0 +1,201 @@
+# =====================================================================
+# Trade Pipeline — Configuration
+# Todos los umbrales, parámetros y rutas viven aquí. Nada hardcodeado.
+# =====================================================================
+
+pipeline:
+  name: "trade-pipeline"
+  version: "0.1.0"
+  log_level: "INFO"
+  timezone: "UTC"
+
+# ---------------------------------------------------------------------
+# Etapa 0 — Validación previa (src/trade_validator.py)
+# Las reglas se evalúan en tres grupos: críticas → negocio → contextuales.
+# ---------------------------------------------------------------------
+validator:
+
+  # --- Reglas críticas (RV-01 a RV-06): baratas y por trade ----------
+  critical:
+    # RV-01: Campos obligatorios no nulos
+    required_fields:
+      - trade_id
+      - timestamp
+      - instrument
+      - asset_class
+      - side
+      - quantity
+      - price
+      - notional
+      - currency
+      - trader_id
+      - status
+
+    # RV-03: side ∈ {BUY, SELL}
+    valid_sides: ["BUY", "SELL"]
+
+    # RV-05: tolerancia en |notional - price*quantity|
+    notional_tolerance: 0.01
+
+    # RV-06: ventana temporal aceptada
+    timestamp_window_days: 30
+
+    # Dominios auxiliares (validados también como críticos)
+    valid_asset_classes: ["equity", "forex", "crypto", "fixed_income"]
+    valid_currencies: ["USD", "EUR", "GBP"]
+    valid_statuses: ["executed", "pending", "cancelled", "failed"]
+
+  # --- Reglas de negocio (RV-07 a RV-12): por instrumento/grupo ------
+  business:
+    # RV-07: lote mínimo por asset_class
+    min_lot_size:
+      equity: 1            # debe ser entero
+      forex: 1000.0        # mínimo 1.000
+      crypto: 0.0001       # mínimo 0.0001
+      fixed_income: 1000.0 # múltiplo de 1.000
+
+    # RV-08: banda de precio ±X% del precio de referencia del instrumento
+    price_band_pct: 0.20
+
+    # RV-09: notional acumulado máximo por trader_id (USD)
+    max_notional_per_trader_usd: 5000000.0
+
+    # RV-10: monedas válidas por asset_class
+    # forex se deriva del par (instrumento), no de esta tabla
+    currency_by_asset_class:
+      equity:       ["USD", "EUR"]
+      fixed_income: ["USD", "EUR"]
+      crypto:       ["USD"]
+
+    # RV-11: máxima concentración de notional por contraparte
+    max_counterparty_concentration_pct: 0.40
+
+    # RV-12: venues autorizados por asset_class
+    venue_whitelist:
+      equity:       ["NYSE", "NASDAQ", "BVC"]
+      forex:        ["OTC", "FX"]
+      crypto:       ["BINANCE", "COINBASE", "KRAKEN"]
+      fixed_income: ["OTC", "BOLSA"]
+
+  # --- Reglas contextuales (RV-13, RV-14): requieren batch entero ----
+  contextual:
+    # RV-13: wash trading — no requiere parámetros, pura lógica
+    # RV-14: outlier IQR — factor multiplicativo
+    iqr_factor: 3.0
+
+# ---------------------------------------------------------------------
+# Etapa 1 — Generación sintética (src/trade_generator.py)
+# ---------------------------------------------------------------------
+generator:
+  default_n_trades: 10000
+  default_seed: 42
+  default_null_rate: 0.02      # 2% nulos en campos nullable
+  default_outlier_rate: 0.01   # 1% de outliers en price/quantity
+  output_dir: "outputs/raw"
+  filename_pattern: "trades_{timestamp}.csv"
+
+  # Catálogo de instrumentos por asset_class
+  instruments:
+    equity:       ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"]
+    forex:        ["EURUSD", "GBPUSD", "USDJPY", "EURGBP"]
+    crypto:       ["BTC-USD", "ETH-USD", "SOL-USD"]
+    fixed_income: ["UST-10Y", "BUND-10Y", "GILT-10Y"]
+
+  # Precios de referencia (se respetan ±20% en RV-08)
+  reference_prices:
+    AAPL: 180.0
+    MSFT: 380.0
+    GOOGL: 140.0
+    AMZN: 170.0
+    TSLA: 240.0
+    EURUSD: 1.08
+    GBPUSD: 1.27
+    USDJPY: 150.0
+    EURGBP: 0.85
+    BTC-USD: 60000.0
+    ETH-USD: 3000.0
+    SOL-USD: 150.0
+    UST-10Y: 100.0
+    BUND-10Y: 100.0
+    GILT-10Y: 100.0
+
+  # Para forex, mapeo del par a las monedas que componen el instrumento
+  forex_pair_currencies:
+    EURUSD: ["EUR", "USD"]
+    GBPUSD: ["GBP", "USD"]
+    USDJPY: ["USD", "JPY"]
+    EURGBP: ["EUR", "GBP"]
+
+# ---------------------------------------------------------------------
+# Etapa 2 — Extracción (src/trade_extractor.py)
+# ---------------------------------------------------------------------
+extractor:
+  mode: "csv"   # csv | api | dataframe
+
+  csv:
+    path: "outputs/raw/trades.csv"
+    encoding: "utf-8"
+    separator: ","
+
+  api:
+    url: "https://api.proveedor.com/v1/trades"
+    auth_type: "bearer"             # bearer | api_key
+    token_env: "TRADES_API_TOKEN"
+    timeout_seconds: 30
+    params:
+      from_date: "auto"             # auto => now - validator.critical.timestamp_window_days
+      limit: 10000
+
+# ---------------------------------------------------------------------
+# Etapa 3 — Transformación (src/business_rules.py, src/data_quality.py)
+# ---------------------------------------------------------------------
+business_rules:
+  # Buckets de riesgo por notional (USD)
+  risk_buckets:
+    high_threshold_usd: 1000000.0   # > 1M  => high
+    medium_threshold_usd: 100000.0  # 100K–1M => medium ; <100K => low
+
+  top_counterparties: 10            # tamaño del top en business_report
+
+data_quality:
+  # Pesos del score global (suman 1.0)
+  weights:
+    completeness: 0.30
+    uniqueness:   0.20
+    consistency:  0.25
+    validity:     0.15
+    outliers:     0.10
+  iqr_factor: 3.0                   # mismo factor IQR que validator.contextual
+
+# ---------------------------------------------------------------------
+# Auditoría transversal (src/audit.py)
+# ---------------------------------------------------------------------
+audit:
+  output_dir: "outputs/audit"
+  rejection_log:  "rejections.jsonl"
+  pipeline_log:   "pipeline_runs.jsonl"
+  access_log:     "api_access.jsonl"
+  data_change_log: "data_changes.jsonl"
+  flush_each_event: true            # JSONL append + flush por evento
+
+# ---------------------------------------------------------------------
+# API REST (src/api/main.py)
+# ---------------------------------------------------------------------
+api:
+  host: "0.0.0.0"
+  port: 8000
+  cors_origins: ["*"]               # restringir en producción
+  pseudonymization:
+    algorithm: "sha256"
+    salt_env: "TRADES_PSEUDO_SALT"
+    default_salt: "dev-only-change-me"   # NO usar en producción
+  cache:
+    enabled: true
+    ttl_seconds: 300
+
+# ---------------------------------------------------------------------
+# Reportes
+# ---------------------------------------------------------------------
+reports:
+  output_dir: "outputs/reports"
+  formats: ["json", "csv"]
