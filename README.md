@@ -4,6 +4,7 @@ Pipeline de procesamiento de trades financieros con validación por reglas,
 generación de datos sintéticos, métricas de calidad y API REST.
 
 [![CI](https://github.com/AndresFCC96/Trades/actions/workflows/ci.yml/badge.svg)](https://github.com/AndresFCC96/Trades/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/AndresFCC96/Trades/branch/main/graph/badge.svg)](https://codecov.io/gh/AndresFCC96/Trades)
 
 ## Stack
 
