@@ -5,7 +5,7 @@
 ruff>=0.6.0
 
 # Security scanners
-bandit[toml]>=1.7.10
+bandit[toml]>=1.9.4
 semgrep>=1.90
 
 # Test helpers
