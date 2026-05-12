@@ -124,13 +124,14 @@ jobs:
     needs: [test]
     steps:
       - uses: actions/checkout@v4
-      - name: Check Dockerfile presence
+      - name: Check Dockerfile and src presence
         id: check
         run: |
-          if [ -f Dockerfile ]; then
+          if [ -f Dockerfile ] && [ -d src ] && [ -d config ]; then
             echo "build=true" >> "$GITHUB_OUTPUT"
           else
             echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping docker build (Dockerfile or src/ or config/ missing)"
           fi
       - name: Set up Docker Buildx
         if: steps.check.outputs.build == 'true'
