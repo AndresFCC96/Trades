@@ -1,0 +1,80 @@
+# =====================================================================
+# Python
+# =====================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# =====================================================================
+# Virtual environments
+# =====================================================================
+venv/
+.venv/
+env/
+ENV/
+
+# =====================================================================
+# Testing & coverage
+# =====================================================================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+.tox/
+.cache/
+
+# =====================================================================
+# IDEs / OS
+# =====================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# =====================================================================
+# Project runtime artifacts (kept dir structure via .gitkeep)
+# =====================================================================
+outputs/raw/*
+outputs/reports/*
+outputs/audit/*
+!outputs/raw/.gitkeep
+!outputs/reports/.gitkeep
+!outputs/audit/.gitkeep
+
+# =====================================================================
+# CI artifacts
+# =====================================================================
+bandit-report.json
+bandit.sarif
+semgrep.sarif
+semgrep-report.json
+*.sarif
+
+# =====================================================================
+# Secrets / local env
+# =====================================================================
+.env
+.env.local
+secrets/

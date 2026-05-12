@@ -1,0 +1,97 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trade-pipeline"
+version = "0.1.0"
+description = "Trade processing pipeline with Polars, FastAPI and Patito"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Andres FCC" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dynamic = ["dependencies"]
+
+[tool.setuptools]
+packages = ["src", "src.api"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+# ---------------------------------------------------------------------
+# ruff (lint + format)
+# ---------------------------------------------------------------------
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["src", "tests"]
+exclude = ["outputs", "build", "dist", ".venv", "venv"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+    "S",   # bandit-via-ruff
+]
+ignore = [
+    "E501",  # line length (handled by formatter)
+    "S101",  # assert (legitimate in tests)
+    "S311",  # pseudo-random — fine for synthetic data
+    "B008",  # function-call in default arg (FastAPI Depends pattern)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*" = ["S", "N801", "N802", "N803", "B017"]
+"conftest.py" = ["S"]
+"src/trade_extractor.py" = ["S310"]  # urllib.urlopen with controlled URL from settings.yaml
+
+# ---------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q --strict-markers"
+markers = [
+    "integration: integration tests (slower, end-to-end)",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:dateutil",
+]
+
+# ---------------------------------------------------------------------
+# coverage
+# ---------------------------------------------------------------------
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*", "**/__init__.py"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
+fail_under = 75
+
+# ---------------------------------------------------------------------
+# bandit
+# ---------------------------------------------------------------------
+[tool.bandit]
+exclude_dirs = ["tests", "venv", ".venv", "build", "dist", "outputs"]
+skips = ["B101"]  # assert_used — legitimate in tests

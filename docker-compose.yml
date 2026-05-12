@@ -1,0 +1,27 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trade-pipeline:latest
+    container_name: trade-pipeline-api
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      TRADES_PSEUDO_SALT: "${TRADES_PSEUDO_SALT:-dev-only-change-me}"
+      TRADES_API_TOKEN: "${TRADES_API_TOKEN:-}"
+    volumes:
+      # Persisten los outputs entre reinicios; settings.yaml read-only
+      - ./outputs:/app/outputs
+      - ./config:/app/config:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import urllib.request, sys;
+          sys.exit(0) if urllib.request.urlopen('http://localhost:8000/health').status == 200 else sys.exit(1)"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped

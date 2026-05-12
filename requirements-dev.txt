@@ -1,0 +1,15 @@
+# Dev-only tooling — instalar después de requirements.txt
+# pip install -r requirements-dev.txt
+
+# Lint & format
+ruff>=0.6.0
+
+# Security scanners
+bandit[toml]>=1.7.10
+semgrep>=1.90
+
+# Test helpers
+pytest-asyncio>=0.23
+
+# Pre-commit (opcional, para uso local)
+pre-commit>=3.6
