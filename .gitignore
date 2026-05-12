@@ -7,6 +7,7 @@ __pycache__/
 *.so
 .Python
 build/
+!docs/build/
 develop-eggs/
 dist/
 downloads/
@@ -71,6 +72,12 @@ bandit.sarif
 semgrep.sarif
 semgrep-report.json
 *.sarif
+
+# =====================================================================
+# Node (only used in docs/build for the docx generator)
+# =====================================================================
+node_modules/
+package-lock.json
 
 # =====================================================================
 # Secrets / local env

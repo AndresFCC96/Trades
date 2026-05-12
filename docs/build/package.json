@@ -1,0 +1,12 @@
+{
+  "name": "trade-pipeline-docs-build",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Generator for docs/TradePipeline-Documentation.docx",
+  "scripts": {
+    "build": "node generate_docs.js"
+  },
+  "dependencies": {
+    "docx": "^9.6.1"
+  }
+}
