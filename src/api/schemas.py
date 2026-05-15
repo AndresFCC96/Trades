@@ -62,3 +62,70 @@ class PipelineHistoryEntry(BaseModel):
     trades_in: int
     trades_out: int
     quality_score: float
+
+
+# =====================================================================
+# Sources (uploads CSV / XLSX / Parquet)
+# =====================================================================
+class SourceMetadata(BaseModel):
+    source_id: str
+    original_name: str
+    ext: str
+    size_bytes: int
+    uploaded_at: str
+    mapping: dict[str, str] = Field(default_factory=dict)
+    row_count: int | None = None
+    column_names: list[str] | None = None
+
+
+class SourcePreview(BaseModel):
+    source_id: str
+    columns: list[str]
+    rows: list[dict[str, Any]]
+    row_count_preview: int
+
+
+class SourceMappingRequest(BaseModel):
+    mapping: dict[str, str]
+
+
+class SourceRunRequest(BaseModel):
+    """Opciones al ejecutar el pipeline contra una fuente subida."""
+    pass
+
+
+# =====================================================================
+# Kafka streaming
+# =====================================================================
+class KafkaConnectRequest(BaseModel):
+    """Override parcial de la sección `kafka` de settings.yaml.
+    Sólo los campos no nulos sobrescriben la config en memoria."""
+    bootstrap_servers: str | None = None
+    topic: str | None = None
+    group_id: str | None = None
+    security_protocol: Literal[
+        "PLAINTEXT", "SSL", "SASL_PLAINTEXT", "SASL_SSL"
+    ] | None = None
+    sasl_mechanism: Literal[
+        "PLAIN", "SCRAM-SHA-256", "SCRAM-SHA-512"
+    ] | None = None
+    auto_offset_reset: Literal["earliest", "latest"] | None = None
+    buffer_max_size: int | None = Field(default=None, ge=1)
+    buffer_max_latency_ms: int | None = Field(default=None, ge=1)
+
+
+class KafkaStatusResponse(BaseModel):
+    state: str
+    started_at: str | None = None
+    messages_consumed_total: int = 0
+    errors_total: int = 0
+    batches_processed: int = 0
+    buffer_size: int = 0
+    throughput_msgs_per_sec: float = 0.0
+    lag: int | None = None
+    last_batch_at: str | None = None
+    last_batch_size: int = 0
+    last_batch_meta: dict[str, Any] = Field(default_factory=dict)
+    last_error: str | None = None
+    bootstrap_servers: str = ""
+    topic: str = ""

@@ -199,3 +199,39 @@ api:
 reports:
   output_dir: "outputs/reports"
   formats: ["json", "csv"]
+
+# ---------------------------------------------------------------------
+# Streaming Kafka (src/kafka_consumer.py)
+# Consumer aiokafka que buffer-ea trades y dispara run_pipeline por lote.
+# ---------------------------------------------------------------------
+kafka:
+  enabled: false                        # arrancar apagado; el operador lo prende vía API
+  bootstrap_servers: "localhost:9092"
+  topic: "trades.raw"
+  group_id: "trade-pipeline"
+  client_id: "trade-pipeline-consumer"
+  auto_offset_reset: "latest"           # latest | earliest
+  security_protocol: "PLAINTEXT"        # PLAINTEXT | SSL | SASL_PLAINTEXT | SASL_SSL
+  sasl_mechanism: null                  # PLAIN | SCRAM-SHA-256 | SCRAM-SHA-512
+  sasl_username_env: "KAFKA_SASL_USERNAME"
+  sasl_password_env: "KAFKA_SASL_PASSWORD"
+
+  buffer:
+    max_size: 1000                      # trades acumulados antes de flush
+    max_latency_ms: 5000                # tiempo máx antes de flush forzado
+    on_error: "skip"                    # skip | dlq | halt
+    dlq_topic: "trades.dlq"             # destino si on_error == dlq
+
+  stats:
+    websocket_interval_ms: 1000         # cadencia del push de stats al frontend
+    throughput_window_seconds: 60       # ventana de la métrica msgs/sec
+
+# ---------------------------------------------------------------------
+# Fuentes externas (src/sources.py)
+# Archivos subidos por el usuario: CSV, XLSX, Parquet.
+# ---------------------------------------------------------------------
+sources:
+  upload_dir: "outputs/sources"
+  max_upload_mb: 200
+  preview_rows: 50
+  allowed_extensions: [".csv", ".xlsx", ".xls", ".parquet"]

@@ -53,17 +53,22 @@ def run_pipeline(
     config: dict[str, Any] | None = None,
     persist_raw: bool = False,
     http_client=None,
+    prebuilt_df: pl.DataFrame | None = None,
 ) -> dict[str, Any]:
     """Ejecuta el pipeline completo y devuelve los tres reportes + metadatos.
 
     Args:
-        n_trades: cantidad a generar (sólo si mode=="dataframe").
-        mode: "dataframe" | "csv" | "api".
+        n_trades: cantidad a generar (sólo si mode=="dataframe" y no hay prebuilt_df).
+        mode: "dataframe" | "csv" | "api" | "stream" | "upload". El valor se
+            usa para reporting; cuando viene `prebuilt_df` el extractor
+            opera siempre como "dataframe".
         seed: semilla para el generador.
         null_rate / outlier_rate: parámetros del generador.
         config: settings dict; si None se carga config/settings.yaml.
         persist_raw: si True, el generador escribe CSV en `outputs/raw/`.
         http_client: callable inyectable para mode="api".
+        prebuilt_df: DataFrame ya armado (p.ej. batch de Kafka o archivo
+            subido). Si está presente, salta la etapa generate.
 
     Returns:
         dict con run_id, métricas por etapa y los tres reportes.
@@ -76,8 +81,8 @@ def run_pipeline(
     logger.info("pipeline.start run_id=%s mode=%s n=%d", run_id, mode, n_trades)
 
     # --------- Stage 1: generate -------------------------------------
-    df_raw: pl.DataFrame | None = None
-    if mode == "dataframe":
+    df_raw: pl.DataFrame | None = prebuilt_df
+    if df_raw is None and mode == "dataframe":
         df_raw = _stage(
             audit, run_id, "generate",
             lambda: generate_trades(
@@ -90,10 +95,13 @@ def run_pipeline(
         )
 
     # --------- Stage 2: extract --------------------------------------
+    # Si tenemos un DataFrame ya armado, el extractor opera siempre en
+    # modo "dataframe" (pass-through + validación Patito).
+    extractor_mode = "dataframe" if df_raw is not None else mode
     df_extracted, ext_meta = _stage(
         audit, run_id, "extract",
         lambda: extract_trades(
-            cfg, mode=mode, dataframe=df_raw,
+            cfg, mode=extractor_mode, dataframe=df_raw,
             audit=audit, http_client=http_client,
         ),
         in_count=len(df_raw) if df_raw is not None else 0,

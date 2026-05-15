@@ -23,6 +23,7 @@ Cache: el último run se guarda en memoria (`app.state.last_run`).
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import hashlib
 import io
@@ -31,19 +32,44 @@ import logging
 import os
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import (
+    FastAPI,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from src.api.schemas import (
     HealthResponse,
+    KafkaConnectRequest,
+    KafkaStatusResponse,
     PipelineHistoryEntry,
     PipelineStatusResponse,
     RunPipelineRequest,
     RunPipelineResponse,
+    SourceMappingRequest,
+    SourceMetadata,
+    SourcePreview,
 )
 from src.audit import AuditLogger, EventType, load_config
+from src.kafka_consumer import KafkaTradeConsumer, make_pipeline_callback
 from src.pipeline_runner import PipelineStageError, run_pipeline
+from src.sources import (
+    SourceError,
+    delete_source,
+    get_source,
+    list_sources,
+    load_dataframe,
+    preview as source_preview,
+    register_upload,
+    set_mapping,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +92,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     app.state.audit = AuditLogger(cfg)
     app.state.last_run = None
     app.state.history: list[dict[str, Any]] = []
+    app.state.kafka_consumer: KafkaTradeConsumer | None = None
 
     # CORS — abierto en dev; restringir en producción vía settings.yaml
     origins = api_cfg.get("cors_origins", ["*"])
@@ -196,6 +223,161 @@ def _register_routes(app: FastAPI) -> None:
     def audit_access_log():
         return app.state.audit.read_events(EventType.API_ACCESS)
 
+    # ----- Sources (uploads CSV / XLSX / Parquet) ---------------------
+    @app.post("/sources/upload", response_model=SourceMetadata, status_code=201)
+    async def sources_upload(file: UploadFile = File(...)) -> SourceMetadata:
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="filename is required")
+        raw = await file.read()
+        try:
+            meta = register_upload(file.filename, raw, app.state.config)
+        except SourceError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        return SourceMetadata(**meta)
+
+    @app.get("/sources", response_model=list[SourceMetadata])
+    def sources_list() -> list[SourceMetadata]:
+        return [SourceMetadata(**m) for m in list_sources(app.state.config)]
+
+    @app.get("/sources/{source_id}", response_model=SourceMetadata)
+    def sources_get(source_id: str) -> SourceMetadata:
+        try:
+            return SourceMetadata(**get_source(app.state.config, source_id))
+        except SourceError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+
+    @app.get("/sources/{source_id}/preview", response_model=SourcePreview)
+    def sources_preview_endpoint(source_id: str) -> SourcePreview:
+        try:
+            return SourcePreview(**source_preview(app.state.config, source_id))
+        except SourceError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+
+    @app.post("/sources/{source_id}/mapping", response_model=SourceMetadata)
+    def sources_mapping(
+        source_id: str, req: SourceMappingRequest
+    ) -> SourceMetadata:
+        try:
+            return SourceMetadata(
+                **set_mapping(app.state.config, source_id, req.mapping)
+            )
+        except SourceError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+    @app.delete("/sources/{source_id}")
+    def sources_delete(source_id: str) -> Response:
+        try:
+            delete_source(app.state.config, source_id)
+        except SourceError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        return Response(status_code=204)
+
+    @app.post("/sources/{source_id}/run", response_model=RunPipelineResponse)
+    def sources_run(source_id: str) -> RunPipelineResponse:
+        cfg = app.state.config
+        try:
+            df = load_dataframe(cfg, source_id)
+        except SourceError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        try:
+            result = run_pipeline(mode="upload", prebuilt_df=df, config=cfg)
+        except PipelineStageError as e:
+            raise HTTPException(
+                status_code=500,
+                detail={"stage": e.stage, "reason": e.reason},
+            ) from e
+        salt = _get_salt(cfg)
+        result = _pseudonymize_result(result, salt)
+        app.state.last_run = result
+        app.state.history.append(_history_entry(result).model_dump())
+        return RunPipelineResponse(
+            run_id=result["run_id"],
+            started_at=result["started_at"],
+            finished_at=result["finished_at"],
+            duration_ms=result["duration_ms"],
+            mode=result["mode"],
+            validation_summary=result["validation_summary"],
+            quality_score=float(result["quality_report"].get("score", 0.0)),
+        )
+
+    # ----- Kafka streaming --------------------------------------------
+    @app.post("/kafka/connect", response_model=KafkaStatusResponse)
+    async def kafka_connect(req: KafkaConnectRequest) -> KafkaStatusResponse:
+        """Aplica overrides a la config y deja el consumer listo (sin arrancarlo)."""
+        cfg = app.state.config
+        _apply_kafka_overrides(cfg, req)
+        # Si ya hay un consumer corriendo, lo paramos para reconfigurar.
+        prev = app.state.kafka_consumer
+        if prev is not None and prev.get_status()["state"] not in ("stopped", "error"):
+            await prev.stop()
+        callback = make_pipeline_callback(
+            cfg, on_run=lambda r: _record_streamed_run(app, r)
+        )
+        app.state.kafka_consumer = KafkaTradeConsumer(cfg, callback)
+        return KafkaStatusResponse(**app.state.kafka_consumer.get_status())
+
+    @app.post("/kafka/start", response_model=KafkaStatusResponse)
+    async def kafka_start() -> KafkaStatusResponse:
+        consumer = _require_consumer(app)
+        try:
+            await consumer.start()
+        except RuntimeError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=502, detail=f"Kafka start failed: {e}") from e
+        return KafkaStatusResponse(**consumer.get_status())
+
+    @app.post("/kafka/pause", response_model=KafkaStatusResponse)
+    async def kafka_pause() -> KafkaStatusResponse:
+        consumer = _require_consumer(app)
+        await consumer.pause()
+        return KafkaStatusResponse(**consumer.get_status())
+
+    @app.post("/kafka/resume", response_model=KafkaStatusResponse)
+    async def kafka_resume() -> KafkaStatusResponse:
+        consumer = _require_consumer(app)
+        await consumer.resume()
+        return KafkaStatusResponse(**consumer.get_status())
+
+    @app.post("/kafka/stop", response_model=KafkaStatusResponse)
+    async def kafka_stop() -> KafkaStatusResponse:
+        consumer = _require_consumer(app)
+        await consumer.stop()
+        return KafkaStatusResponse(**consumer.get_status())
+
+    @app.get("/kafka/status", response_model=KafkaStatusResponse)
+    def kafka_status() -> KafkaStatusResponse:
+        consumer = app.state.kafka_consumer
+        if consumer is None:
+            cfg = app.state.config["kafka"]
+            return KafkaStatusResponse(
+                state="stopped",
+                bootstrap_servers=str(cfg["bootstrap_servers"]),
+                topic=str(cfg["topic"]),
+            )
+        return KafkaStatusResponse(**consumer.get_status())
+
+    @app.websocket("/ws/kafka/stats")
+    async def kafka_stats_ws(websocket: WebSocket) -> None:
+        await websocket.accept()
+        interval_ms = int(
+            app.state.config["kafka"]["stats"]["websocket_interval_ms"]
+        )
+        try:
+            while True:
+                consumer = app.state.kafka_consumer
+                payload = (
+                    consumer.get_status() if consumer is not None
+                    else {"state": "stopped"}
+                )
+                await websocket.send_json(payload)
+                await asyncio.sleep(interval_ms / 1000.0)
+        except WebSocketDisconnect:
+            return
+        except Exception:  # noqa: BLE001
+            logger.exception("ws/kafka/stats loop crashed")
+            await websocket.close(code=1011)
+
 
 # =====================================================================
 # Helpers
@@ -204,6 +386,48 @@ def _require_last_run(app: FastAPI) -> dict[str, Any]:
     if app.state.last_run is None:
         raise HTTPException(status_code=404, detail="No pipeline run yet")
     return app.state.last_run
+
+
+def _require_consumer(app: FastAPI) -> KafkaTradeConsumer:
+    if app.state.kafka_consumer is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Kafka consumer not configured; call POST /kafka/connect first",
+        )
+    return app.state.kafka_consumer
+
+
+def _apply_kafka_overrides(cfg: dict[str, Any], req: KafkaConnectRequest) -> None:
+    """Aplica overrides parciales a cfg['kafka'] in-place."""
+    k = cfg["kafka"]
+    if req.bootstrap_servers is not None:
+        k["bootstrap_servers"] = req.bootstrap_servers
+    if req.topic is not None:
+        k["topic"] = req.topic
+    if req.group_id is not None:
+        k["group_id"] = req.group_id
+    if req.security_protocol is not None:
+        k["security_protocol"] = req.security_protocol
+    if req.sasl_mechanism is not None:
+        k["sasl_mechanism"] = req.sasl_mechanism
+    if req.auto_offset_reset is not None:
+        k["auto_offset_reset"] = req.auto_offset_reset
+    if req.buffer_max_size is not None:
+        k["buffer"]["max_size"] = req.buffer_max_size
+    if req.buffer_max_latency_ms is not None:
+        k["buffer"]["max_latency_ms"] = req.buffer_max_latency_ms
+
+
+def _record_streamed_run(app: FastAPI, result: dict[str, Any]) -> None:
+    """Callback invocado por el consumer Kafka cuando termina un batch.
+
+    Pseudonimiza, cachea como last_run y agrega al historial. Es lo mismo
+    que hace pipeline_run(), centralizado para reuso.
+    """
+    salt = _get_salt(app.state.config)
+    result = _pseudonymize_result(result, salt)
+    app.state.last_run = result
+    app.state.history.append(_history_entry(result).model_dump())
 
 
 def _history_entry(result: dict[str, Any]) -> PipelineHistoryEntry:
