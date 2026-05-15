@@ -99,11 +99,13 @@ class KafkaTradeConsumer:
         on_batch: BatchCallback,
         *,
         consumer_factory: Callable[..., Any] | None = None,
+        on_ingest: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self.cfg = config["kafka"]
         self.buffer_cfg = self.cfg["buffer"]
         self.stats_cfg = self.cfg["stats"]
         self.on_batch = on_batch
+        self.on_ingest = on_ingest
         self._consumer_factory = consumer_factory
 
         self._buffer: list[dict[str, Any]] = []
@@ -236,6 +238,11 @@ class KafkaTradeConsumer:
             self._buffer.append(payload)
             self.stats.messages_consumed_total += 1
             self._throughput_window.append(time.monotonic())
+            if self.on_ingest is not None:
+                try:
+                    self.on_ingest(payload)
+                except Exception:  # noqa: BLE001
+                    logger.exception("kafka.consumer.on_ingest hook failed")
         except Exception as e:  # noqa: BLE001
             self.stats.errors_total += 1
             self.stats.last_error = str(e)

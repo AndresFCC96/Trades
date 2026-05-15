@@ -179,3 +179,51 @@ class AuditPage(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+# =====================================================================
+# HTTP source test connection
+# =====================================================================
+class HttpTestRequest(BaseModel):
+    url: str
+    auth_type: Literal["none", "bearer", "api_key"] = "none"
+    token: str | None = None
+    headers: dict[str, str] = Field(default_factory=dict)
+    timeout_seconds: float = Field(default=10.0, ge=0.5, le=60.0)
+
+
+class HttpTestResponse(BaseModel):
+    ok: bool
+    status_code: int | None = None
+    latency_ms: float | None = None
+    sample: Any = None
+    error: str | None = None
+
+
+# =====================================================================
+# Saved Kafka clusters
+# =====================================================================
+class KafkaCluster(BaseModel):
+    id: str
+    name: str
+    bootstrap_servers: str
+    topic: str
+    group_id: str
+    security_protocol: Literal[
+        "PLAINTEXT", "SSL", "SASL_PLAINTEXT", "SASL_SSL"
+    ] = "PLAINTEXT"
+    last_used_at: str | None = None
+
+
+class KafkaClusterUpsertRequest(BaseModel):
+    name: str
+    bootstrap_servers: str
+    topic: str
+    group_id: str
+    security_protocol: Literal[
+        "PLAINTEXT", "SSL", "SASL_PLAINTEXT", "SASL_SSL"
+    ] = "PLAINTEXT"
+
+
+class KafkaClustersResponse(BaseModel):
+    clusters: list[KafkaCluster]

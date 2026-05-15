@@ -15,6 +15,10 @@ import type {
   SourcePreview,
   KafkaConnectRequest,
   KafkaStatus,
+  KafkaCluster,
+  KafkaClusterUpsertRequest,
+  HttpTestRequest,
+  HttpTestResponse,
   AuditPage,
   AuditTradesFilters,
   AuditPipelineFilters,
@@ -115,3 +119,17 @@ export const patchRule = (ruleId: string, enabled: boolean) =>
 export const getSettings = () => request<SettingsResponse>('/settings');
 export const putSettings = (patch: Record<string, unknown>) =>
   request<SettingsResponse>('/settings', { method: 'PUT', body: { patch } });
+
+// ----- HTTP source test connection -----------------------------------
+export const testHttpEndpoint = (body: HttpTestRequest) =>
+  request<HttpTestResponse>('/sources/http/test', { method: 'POST', body });
+
+// ----- Saved Kafka clusters ------------------------------------------
+export const listKafkaClusters = () =>
+  request<{ clusters: KafkaCluster[] }>('/kafka/clusters');
+export const createKafkaCluster = (body: KafkaClusterUpsertRequest) =>
+  request<KafkaCluster>('/kafka/clusters', { method: 'POST', body });
+export const deleteKafkaCluster = (id: string) =>
+  request<void>(`/kafka/clusters/${id}`, { method: 'DELETE' });
+export const useKafkaCluster = (id: string) =>
+  request<KafkaStatus>(`/kafka/clusters/${id}/use`, { method: 'POST' });

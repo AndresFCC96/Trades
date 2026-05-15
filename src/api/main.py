@@ -30,7 +30,13 @@ import io
 import json
 import logging
 import os
+import time
+from collections import deque
+from datetime import datetime, timezone
 from typing import Any
+from urllib.request import Request as UrlRequest
+from urllib.request import urlopen
+from uuid import uuid4
 
 from fastapi import (
     FastAPI,
@@ -48,6 +54,11 @@ from fastapi.responses import Response, StreamingResponse
 from src.api.schemas import (
     AuditPage,
     HealthResponse,
+    HttpTestRequest,
+    HttpTestResponse,
+    KafkaCluster,
+    KafkaClustersResponse,
+    KafkaClusterUpsertRequest,
     KafkaConnectRequest,
     KafkaStatusResponse,
     PipelineHistoryEntry,
@@ -153,6 +164,13 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     # Capped at MAX_RESULTS to bound memory; oldest entry is evicted FIFO.
     app.state.results_by_run_id: dict[str, dict[str, Any]] = {}
     app.state.kafka_consumer: KafkaTradeConsumer | None = None
+    # In-memory CRUD of saved Kafka cluster definitions. Survives only
+    # until restart; persistence to disk is backlog.
+    app.state.kafka_clusters: dict[str, dict[str, Any]] = {}
+    # Per-trade live stream buffer (ring) for /ws/kafka/trades. Filled
+    # by the Kafka consumer's ingest hook.
+    app.state.live_trades: deque = deque(maxlen=200)
+    app.state.live_trade_subscribers: set[WebSocket] = set()
     # Disabled rule IDs. /rules toggles this set; the next pipeline run
     # (sync, upload or Kafka batch) reads it and skips those rules.
     app.state.disabled_rules: set[str] = set()
@@ -437,7 +455,10 @@ def _register_routes(app: FastAPI) -> None:
             on_run=lambda r: _record_streamed_run(app, r),
             disabled_rules=lambda: set(app.state.disabled_rules),
         )
-        app.state.kafka_consumer = KafkaTradeConsumer(cfg, callback)
+        app.state.kafka_consumer = KafkaTradeConsumer(
+            cfg, callback,
+            on_ingest=lambda payload: _broadcast_trade(app, payload),
+        )
         return KafkaStatusResponse(**app.state.kafka_consumer.get_status())
 
     @app.post("/kafka/start", response_model=KafkaStatusResponse)
@@ -523,6 +544,160 @@ def _register_routes(app: FastAPI) -> None:
         _deep_merge(app.state.config, req.patch)
         return SettingsResponse(settings=copy.deepcopy(app.state.config))
 
+    # ----- HTTP source test connection --------------------------------
+    @app.post("/sources/http/test", response_model=HttpTestResponse)
+    def sources_http_test(req: HttpTestRequest) -> HttpTestResponse:
+        """Smoke-test an external HTTP endpoint and return a tiny preview.
+
+        Uses `urllib` directly (same primitive the extractor relies on)
+        so we don't bring an extra http client into the request path.
+        """
+        headers: dict[str, str] = dict(req.headers)
+        if req.auth_type == "bearer" and req.token:
+            headers["Authorization"] = f"Bearer {req.token}"
+        elif req.auth_type == "api_key" and req.token:
+            headers["X-API-Key"] = req.token
+
+        started = time.perf_counter()
+        try:
+            url = req.url
+            # URL is operator-supplied; intentionally no schema whitelist
+            # here — front-end gates the field. Tests can mock this fn.
+            httpreq = UrlRequest(url, headers=headers, method="GET")  # noqa: S310
+            with urlopen(httpreq, timeout=req.timeout_seconds) as resp:  # noqa: S310  # nosec B310
+                body = resp.read(64 * 1024)  # cap at 64KB
+                code = resp.getcode()
+            latency = (time.perf_counter() - started) * 1000.0
+            sample: Any
+            try:
+                parsed = json.loads(body.decode("utf-8", errors="replace"))
+                # Trim large payloads so the UI doesn't have to render MBs
+                if isinstance(parsed, list):
+                    sample = {"type": "array", "count": len(parsed),
+                              "first": parsed[:3]}
+                elif isinstance(parsed, dict) and "trades" in parsed and isinstance(parsed["trades"], list):
+                    sample = {"type": "object",
+                              "count": len(parsed["trades"]),
+                              "first": parsed["trades"][:3]}
+                else:
+                    sample = parsed
+            except json.JSONDecodeError:
+                sample = {"type": "text", "preview": body[:512].decode(
+                    "utf-8", errors="replace")}
+            return HttpTestResponse(
+                ok=200 <= code < 400,
+                status_code=code,
+                latency_ms=round(latency, 2),
+                sample=sample,
+            )
+        except Exception as e:  # noqa: BLE001
+            latency = (time.perf_counter() - started) * 1000.0
+            return HttpTestResponse(
+                ok=False,
+                status_code=None,
+                latency_ms=round(latency, 2),
+                error=str(e),
+            )
+
+    # ----- Saved Kafka clusters (CRUD in memory) ----------------------
+    @app.get("/kafka/clusters", response_model=KafkaClustersResponse)
+    def kafka_clusters_list() -> KafkaClustersResponse:
+        clusters = [
+            KafkaCluster(**c) for c in app.state.kafka_clusters.values()
+        ]
+        clusters.sort(
+            key=lambda c: c.last_used_at or "",
+            reverse=True,
+        )
+        return KafkaClustersResponse(clusters=clusters)
+
+    @app.post(
+        "/kafka/clusters",
+        response_model=KafkaCluster,
+        status_code=201,
+    )
+    def kafka_clusters_create(
+        req: KafkaClusterUpsertRequest,
+    ) -> KafkaCluster:
+        cid = str(uuid4())
+        record = {
+            "id": cid,
+            "name": req.name,
+            "bootstrap_servers": req.bootstrap_servers,
+            "topic": req.topic,
+            "group_id": req.group_id,
+            "security_protocol": req.security_protocol,
+            "last_used_at": None,
+        }
+        app.state.kafka_clusters[cid] = record
+        return KafkaCluster(**record)
+
+    @app.delete("/kafka/clusters/{cluster_id}")
+    def kafka_clusters_delete(cluster_id: str) -> Response:
+        if cluster_id not in app.state.kafka_clusters:
+            raise HTTPException(status_code=404, detail="Cluster not found")
+        del app.state.kafka_clusters[cluster_id]
+        return Response(status_code=204)
+
+    @app.post("/kafka/clusters/{cluster_id}/use", response_model=KafkaStatusResponse)
+    async def kafka_clusters_use(cluster_id: str) -> KafkaStatusResponse:
+        """Apply a saved cluster's config via /kafka/connect."""
+        record = app.state.kafka_clusters.get(cluster_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Cluster not found")
+        record["last_used_at"] = datetime.now(timezone.utc).isoformat()
+        cfg = app.state.config
+        _apply_kafka_overrides(
+            cfg,
+            KafkaConnectRequest(
+                bootstrap_servers=record["bootstrap_servers"],
+                topic=record["topic"],
+                group_id=record["group_id"],
+                security_protocol=record["security_protocol"],
+            ),
+        )
+        prev = app.state.kafka_consumer
+        if prev is not None and prev.get_status()["state"] not in (
+            "stopped",
+            "error",
+        ):
+            await prev.stop()
+        callback = make_pipeline_callback(
+            cfg,
+            on_run=lambda r: _record_streamed_run(app, r),
+            disabled_rules=lambda: set(app.state.disabled_rules),
+        )
+        app.state.kafka_consumer = KafkaTradeConsumer(
+            cfg, callback,
+            on_ingest=lambda payload: _broadcast_trade(app, payload),
+        )
+        return KafkaStatusResponse(**app.state.kafka_consumer.get_status())
+
+    @app.websocket("/ws/kafka/trades")
+    async def kafka_trades_ws(websocket: WebSocket) -> None:
+        """Push individual trades as they arrive on the consumer.
+
+        Each subscriber gets the in-memory ring buffer on connect, then
+        live updates. No backpressure — slow consumers are simply dropped
+        if their send queue fills.
+        """
+        await websocket.accept()
+        app.state.live_trade_subscribers.add(websocket)
+        try:
+            # Replay current buffer so the UI doesn't start empty.
+            for t in list(app.state.live_trades):
+                await websocket.send_json(t)
+            while True:
+                # Keep the connection open; broadcasts happen from
+                # _broadcast_trade() on the consumer ingest hook.
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            pass
+        except Exception:  # noqa: BLE001
+            logger.exception("ws/kafka/trades loop crashed")
+        finally:
+            app.state.live_trade_subscribers.discard(websocket)
+
     @app.websocket("/ws/kafka/stats")
     async def kafka_stats_ws(websocket: WebSocket) -> None:
         await websocket.accept()
@@ -562,6 +737,41 @@ def _resolve_run(app: FastAPI, run_id: str | None) -> dict[str, Any]:
     if cached is None:
         raise HTTPException(status_code=404, detail=f"Unknown run_id: {run_id}")
     return cached
+
+
+def _broadcast_trade(app: FastAPI, payload: dict[str, Any]) -> None:
+    """Append to the live-trades ring and schedule a push to each subscriber.
+
+    Called from the Kafka consumer's ingest hook. Runs synchronously
+    but launches a fire-and-forget asyncio task per subscriber so a
+    slow socket doesn't block the consumer loop.
+    """
+    enriched = {
+        **payload,
+        "_arrived_at": datetime.now(timezone.utc).isoformat(),
+    }
+    app.state.live_trades.append(enriched)
+    subscribers = list(app.state.live_trade_subscribers)
+    if not subscribers:
+        return
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        return
+    for ws in subscribers:
+        try:
+            loop.create_task(_safe_send_json(app, ws, enriched))
+        except RuntimeError:
+            # Loop is not running yet (e.g. unit test without a running
+            # event loop) — drop silently.
+            pass
+
+
+async def _safe_send_json(app: FastAPI, ws: WebSocket, data: dict[str, Any]) -> None:
+    try:
+        await ws.send_json(data)
+    except Exception:  # noqa: BLE001
+        app.state.live_trade_subscribers.discard(ws)
 
 
 def _paginate(events: list[dict[str, Any]], limit: int, offset: int) -> AuditPage:

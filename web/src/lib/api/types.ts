@@ -200,3 +200,39 @@ export type RulesResponse = {
 export type SettingsResponse = {
   settings: Record<string, unknown>;
 };
+
+// ----- HTTP source test connection -----------------------------------
+export type HttpTestRequest = {
+  url: string;
+  auth_type?: 'none' | 'bearer' | 'api_key';
+  token?: string;
+  headers?: Record<string, string>;
+  timeout_seconds?: number;
+};
+
+export type HttpTestResponse = {
+  ok: boolean;
+  status_code: number | null;
+  latency_ms: number | null;
+  sample: unknown;
+  error: string | null;
+};
+
+// ----- Saved Kafka clusters ------------------------------------------
+export type KafkaCluster = {
+  id: string;
+  name: string;
+  bootstrap_servers: string;
+  topic: string;
+  group_id: string;
+  security_protocol: 'PLAINTEXT' | 'SSL' | 'SASL_PLAINTEXT' | 'SASL_SSL';
+  last_used_at: string | null;
+};
+
+export type KafkaClusterUpsertRequest = {
+  name: string;
+  bootstrap_servers: string;
+  topic: string;
+  group_id: string;
+  security_protocol?: 'PLAINTEXT' | 'SSL' | 'SASL_PLAINTEXT' | 'SASL_SSL';
+};

@@ -12,6 +12,7 @@ import {
 import { useStore } from '@/lib/store';
 import { fmt } from '@/lib/fmt';
 import { useKafkaStats } from '@/features/kafka/useKafkaStats';
+import { useKafkaTrades } from '@/features/kafka/useKafkaTrades';
 
 import { Panel } from '@/components/ui/Panel';
 import { Btn } from '@/components/ui/Btn';
@@ -45,6 +46,7 @@ export function KafkaTab() {
   });
   const { status: wsStatus, history } = useKafkaStats();
   const status = wsStatus ?? restStatus ?? null;
+  const liveTrades = useKafkaTrades(50);
   const state: KafkaState = (status?.state as KafkaState) ?? 'stopped';
 
   const connectMut = useMutation({
@@ -329,6 +331,82 @@ export function KafkaTab() {
           </div>
         )}
       </Panel>
+
+      <Panel
+        title={`Live Stream Preview · ${status?.topic ?? '—'}`}
+        right={
+          <span
+            className="font-mono text-xs"
+            style={{ color: liveTrades.length > 0 ? '#4ade80' : 'var(--muted)' }}
+          >
+            {liveTrades.length > 0
+              ? `● ${liveTrades.length} TRADES IN BUFFER`
+              : '— WAITING FOR TRADES —'}
+          </span>
+        }
+      >
+        <LiveTradesTable trades={liveTrades} />
+      </Panel>
+    </div>
+  );
+}
+
+function LiveTradesTable({ trades }: { trades: Array<Record<string, unknown>> }) {
+  if (trades.length === 0) {
+    return (
+      <div className="py-6 text-center font-mono text-sm text-muted">
+        — Live trades will appear here as the consumer ingests them. Connect
+        a cluster and start the stream to populate this table. —
+      </div>
+    );
+  }
+  return (
+    <div style={{ maxHeight: 280, overflow: 'auto' }} className="font-mono text-sm">
+      <div
+        className="grid sticky top-0 bg-panel"
+        style={{
+          gridTemplateColumns: '130px 110px 60px 110px 90px 90px 60px',
+          padding: '6px 10px',
+          borderBottom: '1px solid var(--border)',
+          color: 'var(--muted)',
+          fontSize: 10,
+          letterSpacing: 0.6,
+        }}
+      >
+        <span>ARRIVED_AT</span>
+        <span>TRADE_ID</span>
+        <span>SIDE</span>
+        <span>INSTRUMENT</span>
+        <span style={{ textAlign: 'right' }}>QTY</span>
+        <span style={{ textAlign: 'right' }}>PRICE</span>
+        <span>CCY</span>
+      </div>
+      {trades.map((t, i) => {
+        const ts = (t._arrived_at as string | undefined) ?? '';
+        const side = (t.side as string | undefined) ?? '—';
+        return (
+          <div
+            key={`${t.trade_id ?? i}-${i}`}
+            className="grid items-center"
+            style={{
+              gridTemplateColumns: '130px 110px 60px 110px 90px 90px 60px',
+              padding: '4px 10px',
+              borderBottom: '1px solid var(--border-soft)',
+              animation: i === 0 ? 'fadeHighlight 1.5s' : 'none',
+            }}
+          >
+            <span className="text-muted">{ts ? ts.slice(11, 23) : '—'}</span>
+            <span>{String(t.trade_id ?? '—').slice(0, 12)}</span>
+            <span style={{ color: side === 'BUY' ? '#4ade80' : '#f87171' }}>
+              {side}
+            </span>
+            <span>{String(t.instrument ?? '—')}</span>
+            <span style={{ textAlign: 'right' }}>{String(t.quantity ?? '—')}</span>
+            <span style={{ textAlign: 'right' }}>{String(t.price ?? '—')}</span>
+            <span className="text-muted">{String(t.currency ?? '—')}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

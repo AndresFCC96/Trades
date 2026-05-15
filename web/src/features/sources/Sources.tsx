@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { FileTab } from './FileTab';
 import { HttpTab } from './HttpTab';
 import { KafkaTab } from './KafkaTab';
+import { SavedTab } from './SavedTab';
 
-type Tab = 'file' | 'http' | 'kafka';
+type Tab = 'file' | 'http' | 'kafka' | 'saved';
 
 export function Sources() {
   const [tab, setTab] = useState<Tab>('kafka');
@@ -12,6 +13,7 @@ export function Sources() {
     ['file', '⇣ FILE UPLOAD'],
     ['http', '⇄ HTTP ENDPOINT'],
     ['kafka', '⥄ KAFKA STREAMING'],
+    ['saved', '☰ SAVED CLUSTERS'],
   ];
 
   return (
@@ -34,6 +36,7 @@ export function Sources() {
       {tab === 'file' && <FileTab />}
       {tab === 'http' && <HttpTab />}
       {tab === 'kafka' && <KafkaTab />}
+      {tab === 'saved' && <SavedTab />}
     </div>
   );
 }
