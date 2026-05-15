@@ -9,7 +9,7 @@ class ResizeObserverStub {
   unobserve() {}
   disconnect() {}
 }
-// @ts-expect-error -- assign global stub
-globalThis.ResizeObserver = globalThis.ResizeObserver ?? ResizeObserverStub;
+const g = globalThis as unknown as { ResizeObserver?: unknown };
+g.ResizeObserver = g.ResizeObserver ?? ResizeObserverStub;
 
 afterEach(() => cleanup());

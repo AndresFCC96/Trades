@@ -3,4 +3,6 @@ dist
 .DS_Store
 *.local
 .vite
-src/routeTree.gen.ts
+# NOTE: src/routeTree.gen.ts is intentionally NOT ignored — it must be
+# present at typecheck time (tsc --noEmit can't trigger the Vite plugin).
+# The router plugin keeps it in sync on every `npm run dev`/`build`.
