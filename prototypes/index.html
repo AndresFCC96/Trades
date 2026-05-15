@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Trade Pipeline · Design Exploration · 4 Prototypes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=IBM+Plex+Mono:wght@400;500&family=Geist:wght@400;500;600&family=Source+Serif+4:wght@400;500;600&family=Crimson+Pro:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #0a0c12;
+    color: #e6e8ec;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  .bg-deco {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(ellipse 700px 400px at 12% 0%, rgba(124,92,255,0.10), transparent 60%),
+      radial-gradient(ellipse 500px 350px at 50% 0%, rgba(45,92,246,0.08), transparent 60%),
+      radial-gradient(ellipse 500px 350px at 88% 0%, rgba(176,133,51,0.06), transparent 60%);
+  }
+  .container { max-width: 1440px; margin: 0 auto; padding: 48px 32px; position: relative; z-index: 1; }
+  h1, h2, h3 { margin: 0; letter-spacing: -0.02em; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .muted { color: #7a818f; }
+
+  /* HERO */
+  .hero { padding: 24px 0 56px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    background: rgba(124,92,255,0.10); color: #b399ff;
+    border: 1px solid rgba(124,92,255,0.25);
+    font-size: 12px; font-weight: 500; font-family: 'JetBrains Mono', monospace;
+  }
+  .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #b399ff; animation: pulseBadge 2s infinite; }
+  @keyframes pulseBadge { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .hero h1 {
+    font-size: 60px; font-weight: 600; margin-top: 16px; letter-spacing: -0.035em; line-height: 1.02;
+    background: linear-gradient(180deg, #fff 0%, #a4adbd 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero p { font-size: 17px; color: #a4adbd; max-width: 760px; margin-top: 18px; }
+  .hero-meta {
+    display: flex; gap: 32px; margin-top: 28px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08);
+    flex-wrap: wrap;
+  }
+  .hero-meta-item .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: #7a818f; display: block; }
+  .hero-meta-item .value { font-size: 14px; color: #e6e8ec; font-weight: 500; font-family: 'JetBrains Mono', monospace; margin-top: 4px; }
+
+  .section { margin-top: 64px; }
+  .section-title { display: flex; align-items: baseline; gap: 12px; margin-bottom: 24px; }
+  .section-title h2 { font-size: 28px; font-weight: 600; }
+  .section-title .pill {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    padding: 2px 8px; border-radius: 999px;
+    background: rgba(255,255,255,0.05); color: #7a818f;
+  }
+
+  /* PROTOTYPES — 2x2 grid */
+  .protos { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .proto {
+    background: #11141c;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: border 0.18s, box-shadow 0.18s, transform 0.18s;
+  }
+  .proto:hover { border-color: rgba(124,92,255,0.5); box-shadow: 0 20px 50px rgba(0,0,0,0.4); transform: translateY(-2px); }
+  .proto-hd { padding: 20px 22px 18px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .proto-hd .tag-row { display: flex; justify-content: space-between; align-items: center; }
+  .proto-hd .tag { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: #7a818f; letter-spacing: 1px; }
+  .proto-hd h3 { font-size: 24px; font-weight: 600; margin-top: 6px; letter-spacing: -0.02em; }
+  .proto-hd .sub { font-size: 13px; color: #a4adbd; margin-top: 8px; line-height: 1.5; }
+  .swatches { display: flex; gap: 5px; margin-top: 14px; }
+  .swatches span { width: 18px; height: 18px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; }
+
+  .proto-frame {
+    position: relative; aspect-ratio: 16/10; background: #000;
+    overflow: hidden; display: flex; align-items: stretch;
+  }
+  .proto-frame iframe { border: 0; width: 1440px; height: 900px; transform: scale(0.46); transform-origin: top left; pointer-events: none; flex-shrink: 0; }
+  .proto { cursor: pointer; }
+  .proto a { cursor: pointer; }
+
+  .proto-ft { padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .proto-ft .info { font-size: 11px; color: #7a818f; }
+  .proto-ft a {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 8px;
+    background: #fff; color: #0a0c12;
+    text-decoration: none; font-size: 12px; font-weight: 500;
+    transition: transform 0.15s, background 0.15s;
+  }
+  .proto-ft a:hover { transform: translateY(-1px); background: #c084fc; color: #fff; }
+
+  /* TOKENS 2x2 */
+  .tokens-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .token-card {
+    background: #11141c; border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 16px; padding: 22px;
+  }
+  .token-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
+  .token-card .tk-tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,0.05); color: #7a818f; font-family: 'JetBrains Mono', monospace; font-weight: 400; }
+  .token-card .tk-sub { font-size: 12px; color: #a4adbd; margin-bottom: 16px; }
+  .tk-section { margin-top: 14px; }
+  .tk-section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: #7a818f; margin-bottom: 8px; font-weight: 600; }
+
+  .color-row { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 4px 0; font-size: 12px; }
+  .color-row .swatch { width: 18px; height: 18px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); }
+  .color-row .name { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+  .color-row .val { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #7a818f; }
+  .type-row { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .type-row:last-child { border-bottom: none; }
+  .type-row .label { font-size: 10px; color: #7a818f; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+
+  /* COMPONENTS */
+  .comp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .comp-card { background: #11141c; border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 22px; }
+  .comp-card h3 { font-size: 17px; font-weight: 600; margin-bottom: 14px; }
+  .comp-row { padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .comp-row:last-child { border-bottom: none; }
+  .comp-row .label { font-size: 10px; color: #7a818f; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px; font-weight: 600; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+  /* Per-prototype demo wrappers */
+  .demo { padding: 14px; border-radius: 8px; }
+  .demo-a { font-family: 'IBM Plex Mono', monospace; background: #0a0c10; }
+  .demo-b { font-family: 'Geist', sans-serif; background: #fafafa; color: #0f1123; }
+  .demo-c { font-family: 'Source Sans 3', sans-serif; background: #fdfcfa; color: #0a0a0a; }
+  .demo-d { font-family: 'IBM Plex Sans', sans-serif; background: #f5f3ee; color: #1a1d24; }
+
+  /* CTA */
+  .cta {
+    margin-top: 72px; padding: 32px;
+    background: linear-gradient(135deg, rgba(124,92,255,0.10), rgba(45,92,246,0.05));
+    border: 1px solid rgba(124,92,255,0.2);
+    border-radius: 16px; text-align: center;
+  }
+  .cta h3 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+  .cta p { color: #a4adbd; font-size: 14px; margin-bottom: 20px; max-width: 600px; margin-left: auto; margin-right: auto; }
+  .cta-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .cta-row a {
+    padding: 10px 18px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 500;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .cta-row a.primary { background: #fff; color: #0a0c12; }
+  .cta-row a.ghost { border: 1px solid rgba(255,255,255,0.12); color: #e6e8ec; }
+  .cta-row a:hover { transform: translateY(-1px); }
+
+  footer { margin-top: 64px; padding-top: 32px; border-top: 1px solid rgba(255,255,255,0.06); color: #7a818f; font-size: 12px; }
+
+  /* shared pulse animations */
+  @keyframes pulseAk { 0%, 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.25); } 50% { box-shadow: 0 0 0 8px rgba(74,222,128,0); } }
+  @keyframes pulseBk { 0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.25); } 50% { box-shadow: 0 0 0 10px rgba(34,197,94,0); } }
+</style>
+</head>
+<body>
+<div class="bg-deco"></div>
+<div class="container">
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="badge"><span class="dot"></span> Design exploration · 4 prototipos completos</div>
+    <h1>Trade Pipeline<br/>Dashboard exploration</h1>
+    <p>Cuatro enfoques conceptualmente distintos para operar el pipeline de procesamiento de trades financieros. Cada prototipo cubre las 9 pantallas (Overview, Run, Data Sources con Kafka, Business, Quality, Validation Rules, Audit, History, Settings) y es interactivo end-to-end. Cada uno soporta <strong>light + dark mode</strong> y un widget flotante abajo-derecha permite saltar entre prototipos.</p>
+    <div class="hero-meta">
+      <div class="hero-meta-item"><span class="label">Stack</span><span class="value">React · CSS · SVG</span></div>
+      <div class="hero-meta-item"><span class="label">Backend asumido</span><span class="value">FastAPI · Polars</span></div>
+      <div class="hero-meta-item"><span class="label">Pantallas/prototipo</span><span class="value">9 · interactive</span></div>
+      <div class="hero-meta-item"><span class="label">Mock data</span><span class="value">30 runs · 14 rules · 80 rej.</span></div>
+      <div class="hero-meta-item"><span class="label">Modular para handoff</span><span class="value">7 files/proto</span></div>
+    </div>
+  </header>
+
+  <!-- PROTOTYPES SIDE-BY-SIDE -->
+  <section class="section">
+    <div class="section-title">
+      <h2>Four directions</h2>
+      <span class="pill">Overview · live preview · click to open fullscreen</span>
+    </div>
+    <div class="protos">
+      <!-- A -->
+      <article class="proto">
+        <div class="proto-hd">
+          <div class="tag-row"><span class="tag">PROTOTYPE A</span><span class="tag" style="color:#4ade80">DARK · TERMINAL</span></div>
+          <h3 style="font-family:'IBM Plex Mono',monospace;letter-spacing:1px;">TRADESYS</h3>
+          <p class="sub">Ultra-denso, terminal-first. Tipografía monoespaciada prominente, líneas finas, alta densidad. Para power users que viven en la herramienta.</p>
+          <div class="swatches">
+            <span style="background:#0a0c10"></span><span style="background:#11151c"></span>
+            <span style="background:#4ade80"></span><span style="background:#fbbf24"></span>
+            <span style="background:#f87171"></span><span style="background:#a78bfa"></span>
+          </div>
+        </div>
+        <a href="prototypes/A - Terminal/index.html" style="text-decoration:none;color:inherit;display:block">
+          <div class="proto-frame"><iframe src="prototypes/A - Terminal/index.html" title="Terminal preview"></iframe></div>
+        </a>
+        <div class="proto-ft">
+          <div class="info">IBM Plex Sans+Mono · ⌘K · Kafka live · stepper animado</div>
+          <a href="prototypes/A - Terminal/index.html">Open →</a>
+        </div>
+      </article>
+
+      <!-- B -->
+      <article class="proto">
+        <div class="proto-hd">
+          <div class="tag-row"><span class="tag">PROTOTYPE B</span><span class="tag" style="color:#7c5cff">LIGHT · MODERN SAAS</span></div>
+          <h3 style="font-family:'Geist',sans-serif">Pipely</h3>
+          <p class="sub">Claro y aireado por default (con dark toggle), cards con sombras suaves, sidebar colapsable, único acento violeta. Equilibrio densidad/respiración.</p>
+          <div class="swatches">
+            <span style="background:#fafafa"></span><span style="background:#ffffff"></span>
+            <span style="background:#7c5cff"></span><span style="background:#22c55e"></span>
+            <span style="background:#f59e0b"></span><span style="background:#ef4444"></span>
+          </div>
+        </div>
+        <a href="prototypes/B - Modern/index.html" style="text-decoration:none;color:inherit;display:block">
+          <div class="proto-frame"><iframe src="prototypes/B - Modern/index.html" title="Modern preview"></iframe></div>
+        </a>
+        <div class="proto-ft">
+          <div class="info">Geist+Mono · light/dark toggle · sidebar collapsible</div>
+          <a href="prototypes/B - Modern/index.html">Open →</a>
+        </div>
+      </article>
+
+      <!-- C -->
+      <article class="proto">
+        <div class="proto-hd">
+          <div class="tag-row"><span class="tag">PROTOTYPE C</span><span class="tag" style="color:#2d5cf6">EDITORIAL · DATA-VIZ FIRST</span></div>
+          <h3 style="font-family:'Source Serif 4',serif">Atlas</h3>
+          <p class="sub">Paper editorial. Charts grandes y asimétricos, headlines serif, top tabs en vez de sidebar. Lectura tipo notebook. Las visualizaciones son las protagonistas.</p>
+          <div class="swatches">
+            <span style="background:#fdfcfa"></span><span style="background:#0a0a0a"></span>
+            <span style="background:#2d5cf6"></span><span style="background:#0d9488"></span>
+            <span style="background:#db2777"></span><span style="background:#ea580c"></span>
+          </div>
+        </div>
+        <a href="prototypes/C - Atlas/index.html" style="text-decoration:none;color:inherit;display:block">
+          <div class="proto-frame"><iframe src="prototypes/C - Atlas/index.html" title="Atlas preview"></iframe></div>
+        </a>
+        <div class="proto-ft">
+          <div class="info">Source Serif 4 + Source Sans 3 · top tabs · multi-color charts</div>
+          <a href="prototypes/C - Atlas/index.html">Open →</a>
+        </div>
+      </article>
+
+      <!-- D -->
+      <article class="proto">
+        <div class="proto-hd">
+          <div class="tag-row"><span class="tag">PROTOTYPE D</span><span class="tag" style="color:#b08533">FORMAL · COMPLIANCE</span></div>
+          <h3 style="font-family:'Crimson Pro',serif">Sentinel</h3>
+          <p class="sub">Estética seria banca corporativa. Navy + gold + cream paper. Tablas formales con bordes, headlines serif, énfasis en audit trail. Sensación de sistema de registro oficial.</p>
+          <div class="swatches">
+            <span style="background:#f5f3ee"></span><span style="background:#0a2540"></span>
+            <span style="background:#b08533"></span><span style="background:#15803d"></span>
+            <span style="background:#b45309"></span><span style="background:#991b1b"></span>
+          </div>
+        </div>
+        <a href="prototypes/D - Sentinel/index.html" style="text-decoration:none;color:inherit;display:block">
+          <div class="proto-frame"><iframe src="prototypes/D - Sentinel/index.html" title="Sentinel preview"></iframe></div>
+        </a>
+        <div class="proto-ft">
+          <div class="info">Crimson Pro + IBM Plex · bordered tables · sign-off flow</div>
+          <a href="prototypes/D - Sentinel/index.html">Open →</a>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- RATIONALE -->
+  <section class="section">
+    <div class="section-title">
+      <h2>When to choose what</h2>
+      <span class="pill">user × context fit</span>
+    </div>
+    <div class="protos">
+      <div class="comp-card">
+        <h3 style="font-family:'IBM Plex Mono',monospace;color:#4ade80">A · TRADESYS works best for…</h3>
+        <ul style="margin: 12px 0 0 18px; padding: 0; color: #c8ccd5; font-size: 13px; line-height: 1.7;">
+          <li>Power users que ya tienen lenguaje técnico interno (run_id, RV-XX, notional)</li>
+          <li>Trading floor donde el monitor está siempre encendido y la densidad importa</li>
+          <li>Debug y forensics: muchos IDs, JSON crudo, paneles compactos</li>
+          <li>Equipos que valoran "feel pro" sobre "feel friendly"</li>
+        </ul>
+        <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 11px; color: #7a818f; font-family: 'JetBrains Mono', monospace;">
+          density:high · learnability:medium · onboarding:low · pro-feel:high
+        </div>
+      </div>
+      <div class="comp-card">
+        <h3 style="font-family:'Geist',sans-serif;color:#9b80ff">B · Pipely works best for…</h3>
+        <ul style="margin: 12px 0 0 18px; padding: 0; color: #c8ccd5; font-size: 13px; line-height: 1.7;">
+          <li>Usuarios menos técnicos (compliance, ops) que necesitan acceder ocasionalmente</li>
+          <li>Demo y stakeholders externos donde la primera impresión importa</li>
+          <li>Sesiones largas — el contraste bajo y el spacing reducen fatiga</li>
+          <li>Equipos construyendo su lenguaje y que quieren un UI más explorable</li>
+        </ul>
+        <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 11px; color: #7a818f; font-family: 'JetBrains Mono', monospace;">
+          density:medium · learnability:high · onboarding:high · pro-feel:medium
+        </div>
+      </div>
+      <div class="comp-card">
+        <h3 style="font-family:'Source Serif 4',serif;color:#2d5cf6">C · Atlas works best for…</h3>
+        <ul style="margin: 12px 0 0 18px; padding: 0; color: #c8ccd5; font-size: 13px; line-height: 1.7;">
+          <li>Analistas que pasan tiempo explorando charts — la lectura es el trabajo</li>
+          <li>Reportes que se imprimen o se comparten como documentos</li>
+          <li>Cuando la audiencia consume datos visualmente más que tablularmente</li>
+          <li>Comunicación con stakeholders ejecutivos — feel editorial / lab</li>
+        </ul>
+        <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 11px; color: #7a818f; font-family: 'JetBrains Mono', monospace;">
+          density:medium · learnability:medium · onboarding:medium · pro-feel:high
+        </div>
+      </div>
+      <div class="comp-card">
+        <h3 style="font-family:'Crimson Pro',serif;color:#b08533">D · Sentinel works best for…</h3>
+        <ul style="margin: 12px 0 0 18px; padding: 0; color: #c8ccd5; font-size: 13px; line-height: 1.7;">
+          <li>Bancos tradicionales, regulación pesada, audit trail prioridad #1</li>
+          <li>Compliance officers que firman reportes — UI sugiere "documento oficial"</li>
+          <li>Organizaciones con cultura conservadora; lenguaje formal y respetuoso</li>
+          <li>Cuando "soberbia" o "novedad" son anti-features — confianza > diferenciación</li>
+        </ul>
+        <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 11px; color: #7a818f; font-family: 'JetBrains Mono', monospace;">
+          density:medium · learnability:high · onboarding:high · pro-feel:high
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TOKENS -->
+  <section class="section">
+    <div class="section-title">
+      <h2>Design tokens</h2>
+      <span class="pill">color · type · scale · per prototype</span>
+    </div>
+    <div class="tokens-grid">
+
+      <!-- A tokens -->
+      <div class="token-card">
+        <h3 style="font-family:'IBM Plex Mono',monospace">TRADESYS <span class="tk-tag">A</span></h3>
+        <p class="tk-sub">Dark-first · dense · cromatic state accents</p>
+        <div class="tk-section">
+          <div class="tk-section-title">Palette</div>
+          <div class="color-row"><span class="swatch" style="background:#0a0c10"></span><span class="name">bg</span><span class="val">#0a0c10</span></div>
+          <div class="color-row"><span class="swatch" style="background:#11151c"></span><span class="name">panel</span><span class="val">#11151c</span></div>
+          <div class="color-row"><span class="swatch" style="background:#4ade80"></span><span class="name">ok / primary</span><span class="val">#4ade80</span></div>
+          <div class="color-row"><span class="swatch" style="background:#fbbf24"></span><span class="name">warn</span><span class="val">#fbbf24</span></div>
+          <div class="color-row"><span class="swatch" style="background:#f87171"></span><span class="name">crit</span><span class="val">#f87171</span></div>
+          <div class="color-row"><span class="swatch" style="background:#a78bfa"></span><span class="name">accent</span><span class="val">#a78bfa</span></div>
+        </div>
+        <div class="tk-section">
+          <div class="tk-section-title">Typography</div>
+          <div class="type-row" style="font-family:'IBM Plex Sans',sans-serif;font-size:13px">IBM Plex Sans · 13/1.5 · body
+            <div class="label">UI text</div>
+          </div>
+          <div class="type-row" style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.4px">IBM Plex Mono · 12 · numerical
+            <div class="label">IDs · numbers · JSON</div>
+          </div>
+          <div class="type-row" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#7a818f;letter-spacing:0.8px;text-transform:uppercase">Plex Mono · 10 caps · LABEL
+            <div class="label">section labels</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- B tokens -->
+      <div class="token-card">
+        <h3 style="font-family:'Geist',sans-serif">Pipely <span class="tk-tag">B</span></h3>
+        <p class="tk-sub">Light-first · soft shadows · single accent</p>
+        <div class="tk-section">
+          <div class="tk-section-title">Palette</div>
+          <div class="color-row"><span class="swatch" style="background:#fafafa"></span><span class="name">bg</span><span class="val">#fafafa</span></div>
+          <div class="color-row"><span class="swatch" style="background:#0f1123"></span><span class="name">fg</span><span class="val">#0f1123</span></div>
+          <div class="color-row"><span class="swatch" style="background:#7c5cff"></span><span class="name">accent</span><span class="val">#7c5cff</span></div>
+          <div class="color-row"><span class="swatch" style="background:#22c55e"></span><span class="name">ok</span><span class="val">#22c55e</span></div>
+          <div class="color-row"><span class="swatch" style="background:#f59e0b"></span><span class="name">warn</span><span class="val">#f59e0b</span></div>
+          <div class="color-row"><span class="swatch" style="background:#ef4444"></span><span class="name">crit</span><span class="val">#ef4444</span></div>
+        </div>
+        <div class="tk-section">
+          <div class="tk-section-title">Typography</div>
+          <div class="type-row" style="font-family:'Geist',sans-serif;font-size:24px;font-weight:600;letter-spacing:-0.6px">Geist 24 · display
+            <div class="label">titles, KPIs</div>
+          </div>
+          <div class="type-row" style="font-family:'Geist',sans-serif;font-size:14px">Geist 14 · body
+            <div class="label">default UI</div>
+          </div>
+          <div class="type-row" style="font-family:'JetBrains Mono',monospace;font-size:12px">Geist Mono · 12
+            <div class="label">numbers, IDs</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- C tokens -->
+      <div class="token-card">
+        <h3 style="font-family:'Source Serif 4',serif;color:#fff">Atlas <span class="tk-tag">C</span></h3>
+        <p class="tk-sub">Editorial paper · multi-hue chart palette</p>
+        <div class="tk-section">
+          <div class="tk-section-title">Palette</div>
+          <div class="color-row"><span class="swatch" style="background:#fdfcfa"></span><span class="name">paper</span><span class="val">#fdfcfa</span></div>
+          <div class="color-row"><span class="swatch" style="background:#0a0a0a"></span><span class="name">ink</span><span class="val">#0a0a0a</span></div>
+          <div class="color-row"><span class="swatch" style="background:#2d5cf6"></span><span class="name">chart blue</span><span class="val">#2d5cf6</span></div>
+          <div class="color-row"><span class="swatch" style="background:#0d9488"></span><span class="name">chart teal</span><span class="val">#0d9488</span></div>
+          <div class="color-row"><span class="swatch" style="background:#db2777"></span><span class="name">chart pink</span><span class="val">#db2777</span></div>
+          <div class="color-row"><span class="swatch" style="background:#ea580c"></span><span class="name">chart orange</span><span class="val">#ea580c</span></div>
+          <div class="color-row"><span class="swatch" style="background:#7c3aed"></span><span class="name">chart violet</span><span class="val">#7c3aed</span></div>
+        </div>
+        <div class="tk-section">
+          <div class="tk-section-title">Typography</div>
+          <div class="type-row" style="font-family:'Source Serif 4',serif;font-size:32px;font-weight:500;letter-spacing:-0.04em">Source Serif 4 · display
+            <div class="label">page titles, big numbers</div>
+          </div>
+          <div class="type-row" style="font-family:'Source Sans 3',sans-serif;font-size:14px">Source Sans 3 · body
+            <div class="label">UI text</div>
+          </div>
+          <div class="type-row" style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#7a818f">Mono CAPS · eyebrow
+            <div class="label">section meta</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- D tokens -->
+      <div class="token-card">
+        <h3 style="font-family:'Crimson Pro',serif;color:#fff">Sentinel <span class="tk-tag">D</span></h3>
+        <p class="tk-sub">Navy + gold · cream paper · institutional</p>
+        <div class="tk-section">
+          <div class="tk-section-title">Palette</div>
+          <div class="color-row"><span class="swatch" style="background:#f5f3ee"></span><span class="name">paper</span><span class="val">#f5f3ee</span></div>
+          <div class="color-row"><span class="swatch" style="background:#ffffff"></span><span class="name">surface</span><span class="val">#ffffff</span></div>
+          <div class="color-row"><span class="swatch" style="background:#0a2540"></span><span class="name">navy / primary</span><span class="val">#0a2540</span></div>
+          <div class="color-row"><span class="swatch" style="background:#b08533"></span><span class="name">gold / accent</span><span class="val">#b08533</span></div>
+          <div class="color-row"><span class="swatch" style="background:#15803d"></span><span class="name">forest / ok</span><span class="val">#15803d</span></div>
+          <div class="color-row"><span class="swatch" style="background:#b45309"></span><span class="name">amber / warn</span><span class="val">#b45309</span></div>
+          <div class="color-row"><span class="swatch" style="background:#991b1b"></span><span class="name">brick / crit</span><span class="val">#991b1b</span></div>
+        </div>
+        <div class="tk-section">
+          <div class="tk-section-title">Typography</div>
+          <div class="type-row" style="font-family:'Crimson Pro',serif;font-size:22px;font-weight:600">Crimson Pro · serif
+            <div class="label">page titles, card headers</div>
+          </div>
+          <div class="type-row" style="font-family:'IBM Plex Sans',sans-serif;font-size:13px">IBM Plex Sans · body
+            <div class="label">UI text</div>
+          </div>
+          <div class="type-row" style="font-family:'IBM Plex Mono',monospace;font-size:11px">Plex Mono · numerical
+            <div class="label">IDs, run codes</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- COMPONENTS -->
+  <section class="section">
+    <div class="section-title">
+      <h2>Key components</h2>
+      <span class="pill">same building blocks · four voices</span>
+    </div>
+    <div class="comp-grid">
+      <!-- A components -->
+      <div class="comp-card">
+        <h3 style="font-family:'IBM Plex Mono',monospace;color:#4ade80">A · TRADESYS</h3>
+
+        <div class="comp-row">
+          <div class="label">KPI</div>
+          <div class="demo demo-a"><div style="padding:12px 14px;border-left:2px solid #4ade80;background:#11151c;border:1px solid #1c2230">
+            <div style="font-size:10px;color:#6a7484;letter-spacing:0.6px;text-transform:uppercase">Quality Score</div>
+            <div style="font-size:22px;color:#4ade80;margin-top:4px">87.3</div>
+          </div></div>
+        </div>
+        <div class="comp-row">
+          <div class="label">Buttons & badges</div>
+          <div class="demo demo-a"><div class="row">
+            <span style="padding:4px 10px;background:#4ade80;color:#0a0c10;font-size:11px;font-weight:600;letter-spacing:0.4px;text-transform:uppercase">▶ RUN</span>
+            <span style="padding:2px 6px;background:rgba(248,113,113,0.08);color:#f87171;font-size:10px;border:1px solid rgba(248,113,113,0.3)">RV-05</span>
+            <span style="padding:2px 6px;background:rgba(74,222,128,0.08);color:#4ade80;font-size:10px;border:1px solid rgba(74,222,128,0.3)">OK</span>
+            <span style="padding:2px 6px;background:rgba(167,139,250,0.08);color:#a78bfa;font-size:10px;border:1px solid rgba(167,139,250,0.3)">KAFKA</span>
+          </div></div>
+        </div>
+        <div class="comp-row">
+          <div class="label">Stream control</div>
+          <div class="demo demo-a"><div style="display:flex;gap:12px;align-items:center">
+            <div style="width:60px;height:60px;border-radius:50%;background:rgba(74,222,128,0.08);border:2px solid #4ade80;display:flex;align-items:center;justify-content:center;color:#4ade80;font-size:14px;animation:pulseAk 2s infinite">▮▮</div>
+            <div>
+              <div style="font-size:10px;color:#6a7484;letter-spacing:0.6px;text-transform:uppercase">Status</div>
+              <div style="font-size:13px;color:#4ade80">● STREAMING</div>
+              <div style="font-size:10px;color:#e6e8ec;margin-top:2px">247 msg/s · lag 1,284</div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+
+      <!-- B components -->
+      <div class="comp-card">
+        <h3 style="font-family:'Geist',sans-serif;color:#9b80ff">B · Pipely</h3>
+
+        <div class="comp-row">
+          <div class="label">KPI</div>
+          <div class="demo demo-b"><div style="padding:14px;background:#fff;border:1px solid rgba(0,0,0,0.06);border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,0.04)">
+            <div style="font-size:12px;color:#6b7180;font-weight:500">Quality Score</div>
+            <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+              <div style="font-size:24px;font-weight:600;letter-spacing:-0.4px">87.3</div>
+              <span style="font-size:12px;color:#22c55e;font-weight:500">+2.4</span>
+            </div>
+          </div></div>
+        </div>
+        <div class="comp-row">
+          <div class="label">Buttons & pills</div>
+          <div class="demo demo-b"><div class="row">
+            <span style="padding:7px 14px;background:#7c5cff;color:#fff;font-size:12px;font-weight:500;border-radius:8px">▷ Run pipeline</span>
+            <span style="padding:2px 8px;background:rgba(34,197,94,0.10);color:#22c55e;border-radius:999px;font-size:11px;font-weight:500;display:inline-flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e"></span>Online</span>
+            <span style="padding:2px 8px;background:rgba(124,92,255,0.10);color:#7c5cff;border-radius:999px;font-size:11px;font-weight:500">kafka</span>
+            <span style="padding:7px 14px;background:transparent;color:#0f1123;font-size:12px;font-weight:500;border-radius:8px;border:1px solid rgba(0,0,0,0.1)">Ghost</span>
+          </div></div>
+        </div>
+        <div class="comp-row">
+          <div class="label">Stream control</div>
+          <div class="demo demo-b"><div style="display:flex;gap:14px;align-items:center;background:#fff;padding:12px;border-radius:12px;border:1px solid rgba(0,0,0,0.06)">
+            <div style="width:60px;height:60px;border-radius:50%;background:radial-gradient(circle,rgba(34,197,94,0.15) 0%,rgba(34,197,94,0.04) 70%);display:flex;align-items:center;justify-content:center;animation:pulseBk 2s infinite"><div style="width:40px;height:40px;border-radius:50%;background:#22c55e;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(34,197,94,0.45)">▮▮</div></div>
+            <div>
+              <div style="font-size:10px;color:#6b7180;text-transform:uppercase;letter-spacing:0.4px;font-weight:600">Status</div>
+              <div style="font-size:13px;color:#22c55e;font-weight:600">Streaming</div>
+              <div style="font-size:11px;color:#6b7180;font-family:'JetBrains Mono',monospace">247 msg/s</div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+
+      <!-- C components -->
+      <div class="comp-card">
+        <h3 style="font-family:'Source Serif 4',serif;color:#2d5cf6">C · Atlas</h3>
+
+        <div class="comp-row">
+          <div class="label">KPI</div>
+          <div class="demo demo-c"><div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:#8a8682;font-weight:500">Quality Score</div>
+            <div style="font-family:'Source Serif 4',serif;font-size:48px;color:#15803d;letter-spacing:-0.04em;line-height:1;margin-top:8px;font-weight:500">87.3</div>
+            <div style="font-size:12px;color:#8a8682;margin-top:8px">threshold ≥ 80 · trend ↗ +2.4</div>
+          </div></div>
+        </div>
+        <div class="comp-row">
+          <div class="label">Buttons & tags</div>
+          <div class="demo demo-c"><div class="row">
+            <span style="padding:7px 14px;background:#2d5cf6;color:#fff;font-size:13px;font-weight:500;font-family:'Source Sans 3',sans-serif">Execute pipeline</span>
+            <span style="padding:7px 14px;background:#fff;color:#0a0a0a;font-size:13px;border:1px solid rgba(10,10,10,0.18)">Ghost</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#2d5cf6;font-weight:500;display:inline-flex;align-items:center;gap:5px"><span style="width:8px;height:8px;background:#2d5cf6"></span>BUSINESS</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#db2777;font-weight:500;display:inline-flex;align-items:center;gap:5px"><span style="width:8px;height:8px;background:#db2777"></span>RV-05</span>
+          </div></div>
+        </div>
+        <div class="comp-row">
+          <div class="label">Stream control</div>
+          <div class="demo demo-c"><div style="display:flex;gap:14px;align-items:center">
+            <div style="width:60px;height:60px;background:#15803d;color:#fff;font-family:'Source Serif 4',serif;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:4px 4px 0 #0a0a0a;font-weight:500">▮▮</div>
+            <div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:#8a8682;font-weight:500">Status</div>
+              <div style="font-family:'Source Serif 4',serif;font-size:18px;color:#15803d;font-weight:500;letter-spacing:-0.02em">Streaming</div>
+              <div style="font-size:11px;color:#8a8682;margin-top:2px;font-family:'JetBrains Mono',monospace">247 msg/s</div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+
+      <!-- D components -->
+      <div class="comp-card">
+        <h3 style="font-family:'Crimson Pro',serif;color:#b08533">D · Sentinel</h3>
+
+        <div class="comp-row">
+          <div class="label">KPI</div>
+          <div class="demo demo-d"><div style="background:#fff;border:1px solid #a8a193;padding:12px 14px;display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+              <div style="font-size:10px;color:#6b7280;letter-spacing:0.4px;text-transform:uppercase;font-weight:600">Quality Score</div>
+              <div style="font-family:'Crimson Pro',serif;font-size:32px;color:#15803d;font-weight:600;letter-spacing:-0.02em;margin-top:6px">87.3</div>
+              <div style="font-size:11px;color:#6b7280;margin-top:6px">Threshold ≥ 80</div>
+            </div>
+            <span style="padding:3px 8px;border:1px solid #15803d;color:#15803d;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;background:#fff">Pass</span>
+          </div></div>
+        </div>
+        <div class="comp-row">
+          <div class="label">Buttons & stamps</div>
+          <div class="demo demo-d"><div class="row">
+            <span style="padding:7px 14px;background:#0a2540;color:#fff;font-size:13px;font-weight:500">Execute pipeline</span>
+            <span style="padding:7px 14px;background:#b08533;color:#fff;font-size:13px;font-weight:500;border:1px solid #d4a93f">Sign-off</span>
+            <span style="padding:3px 8px;border:1px solid #0a2540;color:#0a2540;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;background:#fff">RV-05</span>
+            <span style="padding:3px 8px;border:1px solid #15803d;color:#15803d;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;background:#fff">Recorded</span>
+          </div></div>
+        </div>
+        <div class="comp-row">
+          <div class="label">Stream control</div>
+          <div class="demo demo-d"><div style="display:flex;gap:14px;align-items:center;background:#fff;padding:12px;border:1px solid #d4cfc4">
+            <div style="width:60px;height:60px;border:2px solid #15803d;background:#f0fdf4;color:#15803d;font-family:'Crimson Pro',serif;font-size:16px;font-weight:500;display:flex;align-items:center;justify-content:center;flex-direction:column">▮▮<div style="font-size:8px;font-family:'IBM Plex Mono',monospace;letter-spacing:1px">LIVE</div></div>
+            <div>
+              <div style="font-size:10px;color:#6b7280;letter-spacing:0.4px;text-transform:uppercase;font-weight:600">Status</div>
+              <div style="font-family:'Crimson Pro',serif;font-size:18px;color:#15803d;font-weight:600">Streaming</div>
+              <div style="font-size:11px;color:#6b7280;font-family:'IBM Plex Mono',monospace">247 msg/s · lag 1,284</div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta">
+    <h3>Pick a direction</h3>
+    <p>Cada prototipo es self-contained en su propia carpeta — modular para handoff a Claude Code. Puedes pedirle cosas como <em>"implementa el Kafka de Atlas con el sidebar de Sentinel y los tweaks de Pipely"</em> y tendrá referencias claras.</p>
+    <div class="cta-row">
+      <a href="prototypes/A - Terminal/index.html" class="primary">A · TRADESYS</a>
+      <a href="prototypes/B - Modern/index.html" class="primary">B · Pipely</a>
+      <a href="prototypes/C - Atlas/index.html" class="primary">C · Atlas</a>
+      <a href="prototypes/D - Sentinel/index.html" class="primary">D · Sentinel</a>
+    </div>
+  </section>
+
+  <footer>
+    Trade Pipeline · 4 prototypes · 9 screens each · cada prototipo es self-contained en su carpeta · ready para handoff modular.
+  </footer>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<title>TRADESYS · Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0a0c10;
+    --panel: #11151c;
+    --panel-2: #1a1f2a;
+    --border: #1c2230;
+    --border-soft: #161a24;
+    --fg: #e6e8ec;
+    --muted: #6a7484;
+    --row-hover: rgba(255,255,255,0.02);
+    --row-hover-strong: rgba(255,255,255,0.03);
+    --knob: #0a0c10;
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --panel-2: #e8eaee;
+    --border: rgba(10,12,16,0.10);
+    --border-soft: rgba(10,12,16,0.05);
+    --fg: #0a0c10;
+    --muted: #5a6373;
+    --row-hover: rgba(10,12,16,0.025);
+    --row-hover-strong: rgba(10,12,16,0.04);
+    --knob: #ffffff;
+  }
+  :root {
+    --sans: 'IBM Plex Sans', system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--sans);
+    font-size: 13px;
+    overflow: hidden;
+    height: 100vh;
+  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #1c2230; border-radius: 0; }
+  ::-webkit-scrollbar-thumb:hover { background: #2a3142; }
+
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(74,222,128,0.15); }
+    50% { box-shadow: 0 0 0 6px rgba(74,222,128,0); }
+  }
+  @keyframes pulseBig {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.2); }
+    50% { box-shadow: 0 0 0 14px rgba(74,222,128,0); }
+  }
+  input, select, textarea, button { font-family: inherit; }
+  input:focus, select:focus { border-color: #4ade80 !important; }
+
+  /* Subtle scanline / grid background */
+  .bg-grid {
+    background-image:
+      linear-gradient(var(--grid-line, rgba(255,255,255,0.015)) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line, rgba(255,255,255,0.015)) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  :root[data-theme="light"] .bg-grid {
+    --grid-line: rgba(10,12,16,0.025);
+  }
+  :root[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(10,12,16,0.15); }
+  :root[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: rgba(10,12,16,0.30); }
+</style>
+</head>
+<body data-prototype="A" data-default-theme="dark" class="bg-grid">
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="mockData.jsx"></script>
+<script type="text/babel" src="primitives.jsx"></script>
+<script type="text/babel" src="shell.jsx"></script>
+<script type="text/babel" src="screens1.jsx"></script>
+<script type="text/babel" src="screens2.jsx"></script>
+<script type="text/babel" src="screens3.jsx"></script>
+<script type="text/babel" src="screens4.jsx"></script>
+<script type="text/babel" src="app.jsx"></script>
+<script src="../_switcher.js"></script>
+</body>
+</html>
