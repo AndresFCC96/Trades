@@ -151,6 +151,36 @@ export type KafkaConnectRequest = {
 // ----- Audit ----------------------------------------------------------
 export type AuditEvent = Record<string, unknown>;
 
+export type AuditPage = {
+  events: AuditEvent[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type AuditTradesFilters = {
+  limit?: number;
+  offset?: number;
+  rule_id?: string;
+  run_id?: string;
+  trade_id?: string;
+};
+
+export type AuditPipelineFilters = {
+  limit?: number;
+  offset?: number;
+  run_id?: string;
+  stage?: string;
+  status?: 'ok' | 'failed';
+};
+
+export type AuditAccessFilters = {
+  limit?: number;
+  offset?: number;
+  code_class?: '2xx' | '4xx' | '5xx';
+  method?: string;
+};
+
 // ----- Rules + Settings -----------------------------------------------
 export type RuleGroupApi = 'critical' | 'business' | 'context';
 

@@ -19,34 +19,37 @@ export function AuditTrades() {
   const [ruleFilter, setRuleFilter] = useState<string>('all');
   const [page, setPage] = useState(0);
 
-  const { data: events = [], isLoading } = useQuery({
-    queryKey: ['audit-trades'],
-    queryFn: getAuditTrades,
+  // Server-side filter + pagination.
+  const { data: pageData, isLoading } = useQuery({
+    queryKey: ['audit-trades', { page, filter, ruleFilter }],
+    queryFn: () =>
+      getAuditTrades({
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+        trade_id: filter || undefined,
+        rule_id: ruleFilter !== 'all' ? ruleFilter : undefined,
+      }),
     refetchInterval: 10_000,
   });
 
+  // Lightweight separate query to populate the rule_id dropdown without
+  // paging through the whole log.
+  const { data: dropdownPage } = useQuery({
+    queryKey: ['audit-trades', 'rule-ids'],
+    queryFn: () => getAuditTrades({ limit: 10_000 }),
+  });
   const ruleIds = useMemo(() => {
     const s = new Set<string>();
-    for (const e of events as AuditEvent[]) {
+    for (const e of dropdownPage?.events ?? []) {
       const id = e.rule_id as string | undefined;
       if (id) s.add(id);
     }
     return Array.from(s).sort();
-  }, [events]);
+  }, [dropdownPage]);
 
-  const filtered = useMemo(() => {
-    const f = filter.toLowerCase();
-    return (events as AuditEvent[]).filter((e) => {
-      const tradeId = ((e.trade_id as string) ?? '').toLowerCase();
-      const desc = ((e.rule_description as string) ?? '').toLowerCase();
-      const matchText = f === '' || tradeId.includes(f) || desc.includes(f);
-      const matchRule = ruleFilter === 'all' || e.rule_id === ruleFilter;
-      return matchText && matchRule;
-    });
-  }, [events, filter, ruleFilter]);
-
-  const pageRows = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-  const hasNext = (page + 1) * PAGE_SIZE < filtered.length;
+  const events = pageData?.events ?? [];
+  const total = pageData?.total ?? 0;
+  const hasNext = (page + 1) * PAGE_SIZE < total;
 
   const cols: Col<AuditEvent>[] = [
     {
@@ -80,7 +83,7 @@ export function AuditTrades() {
   return (
     <div className="p-4 flex flex-col gap-3">
       <Panel
-        title={`Rejected Trades · ${filtered.length} of ${events.length}${isLoading ? ' (loading…)' : ''}`}
+        title={`Rejected Trades · ${total} matching${isLoading ? ' (loading…)' : ''}`}
       >
         <div className="flex gap-2 mb-2.5">
           <input
@@ -89,7 +92,7 @@ export function AuditTrades() {
               setFilter(e.target.value);
               setPage(0);
             }}
-            placeholder="Search trade_id / rule description…"
+            placeholder="Search trade_id substring (server-side)…"
             style={{ ...inputBoxStyle, flex: 1, marginTop: 0 }}
           />
           <select
@@ -109,26 +112,26 @@ export function AuditTrades() {
           </select>
           <Btn
             kind="solid"
-            onClick={() => downloadJson(filtered, 'rejected_trades')}
-            disabled={filtered.length === 0}
+            onClick={() => downloadJson(events, 'rejected_trades_page')}
+            disabled={events.length === 0}
           >
-            EXPORT JSON
+            EXPORT PAGE JSON
           </Btn>
           <Btn
             kind="solid"
-            onClick={() => downloadCsv(filtered as Array<Record<string, unknown>>, 'rejected_trades')}
-            disabled={filtered.length === 0}
+            onClick={() => downloadCsv(events as Array<Record<string, unknown>>, 'rejected_trades_page')}
+            disabled={events.length === 0}
           >
-            EXPORT CSV
+            EXPORT PAGE CSV
           </Btn>
         </div>
         <div style={{ maxHeight: 540, overflow: 'auto' }}>
-          <Table dense sticky cols={cols} rows={pageRows} emptyLabel="— NO REJECTIONS —" />
+          <Table dense sticky cols={cols} rows={events} emptyLabel="— NO REJECTIONS —" />
         </div>
         <div className="pt-2.5 flex justify-between font-mono text-xs text-muted">
           <span>
-            SHOWING {filtered.length === 0 ? 0 : page * PAGE_SIZE + 1}—
-            {Math.min((page + 1) * PAGE_SIZE, filtered.length)} OF {filtered.length}
+            SHOWING {total === 0 ? 0 : page * PAGE_SIZE + 1}—
+            {Math.min((page + 1) * PAGE_SIZE, total)} OF {total}
           </span>
           <div className="flex gap-1.5">
             <Btn onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>

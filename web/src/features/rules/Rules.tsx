@@ -29,12 +29,13 @@ export function Rules() {
     refetchInterval: 30_000,
   });
 
-  const { data: rejections = [] } = useQuery({
-    queryKey: ['audit-trades'],
-    queryFn: getAuditTrades,
+  const { data: rejectionsPage } = useQuery({
+    queryKey: ['audit-trades', 'all'],
+    queryFn: () => getAuditTrades({ limit: 10_000 }),
     retry: false,
     refetchInterval: 15_000,
   });
+  const rejections = rejectionsPage?.events ?? [];
 
   const patchMut = useMutation({
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>

@@ -30,12 +30,17 @@ describe('<Rules />', () => {
 
   it('renders the three groups and 14 rule cards with aggregated rejection counts', async () => {
     (endpoints.getRules as ReturnType<typeof vi.fn>).mockResolvedValue(sampleRules);
-    (endpoints.getAuditTrades as ReturnType<typeof vi.fn>).mockResolvedValue([
-      { rule_id: 'RV-01' },
-      { rule_id: 'RV-01' },
-      { rule_id: 'RV-05' },
-      { rule_id: 'RV-14' },
-    ]);
+    (endpoints.getAuditTrades as ReturnType<typeof vi.fn>).mockResolvedValue({
+      events: [
+        { rule_id: 'RV-01' },
+        { rule_id: 'RV-01' },
+        { rule_id: 'RV-05' },
+        { rule_id: 'RV-14' },
+      ],
+      total: 4,
+      limit: 10_000,
+      offset: 0,
+    });
 
     render(withQueryClient(<Rules />));
 
@@ -52,7 +57,12 @@ describe('<Rules />', () => {
 
   it('toggling a rule calls patchRule and emits an ok toast', async () => {
     (endpoints.getRules as ReturnType<typeof vi.fn>).mockResolvedValue(sampleRules);
-    (endpoints.getAuditTrades as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (endpoints.getAuditTrades as ReturnType<typeof vi.fn>).mockResolvedValue({
+      events: [],
+      total: 0,
+      limit: 10_000,
+      offset: 0,
+    });
     (endpoints.patchRule as ReturnType<typeof vi.fn>).mockResolvedValue({
       ...sampleRules,
       rules: sampleRules.rules.map((r) =>

@@ -162,7 +162,9 @@ class TestAudit:
     def test_audit_pipeline_after_run(self, client_after_run):
         r = client_after_run.get("/audit/pipeline")
         assert r.status_code == 200
-        events = r.json()
+        body = r.json()
+        # paginated wrapper now: {events, total, limit, offset}
+        events = body["events"]
         # 4 etapas registradas para el run
         assert len(events) >= 4
         stages = {e["stage"] for e in events}
@@ -173,7 +175,8 @@ class TestAudit:
         # llamada GET /audit/access que lee la lista todavía no aparece allí.
         client.get("/health")
         client.get("/health")
-        events = client.get("/audit/access").json()
+        body = client.get("/audit/access").json()
+        events = body["events"]
         # Al menos las 2 llamadas previas a /health
         assert len(events) >= 2
         endpoints = {e["endpoint"] for e in events}
@@ -182,7 +185,7 @@ class TestAudit:
     def test_audit_trades_pseudonymizes(self, client_after_run):
         r = client_after_run.get("/audit/trades")
         assert r.status_code == 200
-        events = r.json()
+        events = r.json()["events"]
         # Para eventos cuya field es trader_id o counterparty_id, value_received
         # debería estar hasheado (16 hex chars), no el original.
         for ev in events:
@@ -191,6 +194,27 @@ class TestAudit:
                 # 16 hex chars
                 assert len(v) == 16
                 assert all(c in "0123456789abcdef" for c in v)
+
+    def test_audit_pipeline_filters_by_run_id(self, client_after_run):
+        # The fixture ran 1 pipeline; capture its run_id and filter.
+        all_events = client_after_run.get("/audit/pipeline").json()["events"]
+        run_id = all_events[0]["pipeline_run_id"]
+        r = client_after_run.get("/audit/pipeline", params={"run_id": run_id})
+        events = r.json()["events"]
+        assert all(e["pipeline_run_id"] == run_id for e in events)
+
+    def test_audit_access_pagination(self, client):
+        # Generate >5 entries
+        for _ in range(6):
+            client.get("/health")
+        body = client.get("/audit/access", params={"limit": 3, "offset": 0}).json()
+        assert body["limit"] == 3
+        assert body["offset"] == 0
+        assert len(body["events"]) == 3
+        assert body["total"] >= 6
+        # Next page
+        body2 = client.get("/audit/access", params={"limit": 3, "offset": 3}).json()
+        assert len(body2["events"]) == 3
 
     def test_business_report_pseudonymizes_top_counterparties(self, client_after_run):
         r = client_after_run.get("/reports/business")

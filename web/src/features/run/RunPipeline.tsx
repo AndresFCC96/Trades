@@ -100,9 +100,10 @@ export function RunPipeline() {
 
   async function applyAuditDurations(runId: string) {
     try {
-      const events = await getAuditPipeline();
-      const stageEvents = events.filter(
-        (e) => (e['pipeline_run_id'] as string) === runId && (e['status'] as string) === 'ok'
+      // Filter by run_id server-side; only 4 stage events expected per run.
+      const page = await getAuditPipeline({ run_id: runId, limit: 50 });
+      const stageEvents = page.events.filter(
+        (e) => (e['status'] as string) === 'ok'
       );
       // Aggregate per stage
       const byStage = new Map<string, { dur: number; tin: number; tout: number }>();

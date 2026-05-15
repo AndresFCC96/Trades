@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { getAuditAccess } from '@/lib/api/endpoints';
@@ -16,23 +16,21 @@ type CodeFilter = 'all' | '2xx' | '4xx' | '5xx';
 export function AuditAccess() {
   const [filter, setFilter] = useState<CodeFilter>('all');
 
-  const { data: events = [], isLoading } = useQuery({
-    queryKey: ['audit-access'],
-    queryFn: getAuditAccess,
+  const { data: pageData, isLoading } = useQuery({
+    queryKey: ['audit-access', filter],
+    queryFn: () =>
+      getAuditAccess({
+        limit: 500,
+        code_class: filter === 'all' ? undefined : filter,
+      }),
     refetchInterval: 10_000,
   });
 
-  const filtered = useMemo(() => {
-    const all = events as AuditEvent[];
-    if (filter === 'all') return all;
-    return all.filter((e) => {
-      const code = Number(e.response_code ?? 0);
-      if (filter === '2xx') return code >= 200 && code < 300;
-      if (filter === '4xx') return code >= 400 && code < 500;
-      if (filter === '5xx') return code >= 500;
-      return true;
-    });
-  }, [events, filter]);
+  // Backend now applies the code_class filter; the original `events`
+  // array is server-filtered.
+  const events = pageData?.events ?? [];
+  const total = pageData?.total ?? 0;
+  const filtered = events;
 
   const cols: Col<AuditEvent>[] = [
     {
@@ -69,7 +67,7 @@ export function AuditAccess() {
   return (
     <div className="p-4">
       <Panel
-        title={`API Access · ${filtered.length} of ${events.length} requests${isLoading ? ' (loading…)' : ''}`}
+        title={`API Access · ${filtered.length} shown · ${total} matching${isLoading ? ' (loading…)' : ''}`}
       >
         <div className="flex items-center gap-2 mb-2.5">
           {(

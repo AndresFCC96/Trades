@@ -40,7 +40,28 @@ describe('<AuditAccess />', () => {
   });
 
   it('renders all events by default and applies the 5xx filter', async () => {
-    (endpoints.getAuditAccess as ReturnType<typeof vi.fn>).mockResolvedValue(events);
+    // Backend now applies code_class server-side; mirror the behaviour
+    // in the mock so the assertion path is unchanged.
+    (endpoints.getAuditAccess as ReturnType<typeof vi.fn>).mockImplementation(
+      (filters: { code_class?: '2xx' | '4xx' | '5xx' } = {}) => {
+        const cls = filters.code_class;
+        const filtered = !cls
+          ? events
+          : events.filter((e) => {
+              const c = e.response_code;
+              if (cls === '2xx') return c >= 200 && c < 300;
+              if (cls === '4xx') return c >= 400 && c < 500;
+              if (cls === '5xx') return c >= 500;
+              return true;
+            });
+        return Promise.resolve({
+          events: filtered,
+          total: filtered.length,
+          limit: 500,
+          offset: 0,
+        });
+      }
+    );
     render(withQueryClient(<AuditAccess />));
 
     await waitFor(() => {
@@ -49,9 +70,11 @@ describe('<AuditAccess />', () => {
     expect(screen.getByText('/pipeline/run')).toBeInTheDocument();
     expect(screen.getByText('/missing')).toBeInTheDocument();
 
-    // Filter to 5xx only
+    // Filter to 5xx only — server returns just the 500.
     await userEvent.click(screen.getByText('5XX'));
-    expect(screen.queryByText('/pipeline/history')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText('/pipeline/history')).not.toBeInTheDocument();
+    });
     expect(screen.queryByText('/missing')).not.toBeInTheDocument();
     expect(screen.getByText('/pipeline/run')).toBeInTheDocument();
   });

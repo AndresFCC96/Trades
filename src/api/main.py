@@ -46,6 +46,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 
 from src.api.schemas import (
+    AuditPage,
     HealthResponse,
     KafkaConnectRequest,
     KafkaStatusResponse,
@@ -278,20 +279,65 @@ def _register_routes(app: FastAPI) -> None:
         run = _resolve_run(app, run_id)
         return _report_response(run["quality_report"], "quality", format)
 
-    # ----- Audit ------------------------------------------------------
-    @app.get("/audit/trades")
-    def audit_rejected_trades():
+    # ----- Audit (paginated + filtered) -------------------------------
+    @app.get("/audit/trades", response_model=AuditPage)
+    def audit_rejected_trades(
+        limit: int = Query(default=100, ge=1, le=10_000),
+        offset: int = Query(default=0, ge=0),
+        rule_id: str | None = Query(default=None),
+        run_id: str | None = Query(default=None),
+        trade_id: str | None = Query(
+            default=None, description="substring match"),
+    ) -> AuditPage:
         events = app.state.audit.read_events(EventType.REJECTION)
         salt = _get_salt(app.state.config)
-        return _pseudonymize_rejection_events(events, salt)
+        events = _pseudonymize_rejection_events(events, salt)
+        if rule_id:
+            events = [e for e in events if e.get("rule_id") == rule_id]
+        if run_id:
+            events = [e for e in events if e.get("pipeline_run_id") == run_id]
+        if trade_id:
+            tid = trade_id.lower()
+            events = [e for e in events if tid in str(e.get("trade_id", "")).lower()]
+        return _paginate(events, limit, offset)
 
-    @app.get("/audit/pipeline")
-    def audit_pipeline_runs():
-        return app.state.audit.read_events(EventType.PIPELINE_RUN)
+    @app.get("/audit/pipeline", response_model=AuditPage)
+    def audit_pipeline_runs(
+        limit: int = Query(default=100, ge=1, le=10_000),
+        offset: int = Query(default=0, ge=0),
+        run_id: str | None = Query(default=None),
+        stage: str | None = Query(default=None),
+        status: str | None = Query(
+            default=None, description="ok | failed"),
+    ) -> AuditPage:
+        events = app.state.audit.read_events(EventType.PIPELINE_RUN)
+        if run_id:
+            events = [e for e in events if e.get("pipeline_run_id") == run_id]
+        if stage:
+            events = [e for e in events if e.get("stage") == stage]
+        if status:
+            events = [e for e in events if e.get("status") == status]
+        return _paginate(events, limit, offset)
 
-    @app.get("/audit/access")
-    def audit_access_log():
-        return app.state.audit.read_events(EventType.API_ACCESS)
+    @app.get("/audit/access", response_model=AuditPage)
+    def audit_access_log(
+        limit: int = Query(default=100, ge=1, le=10_000),
+        offset: int = Query(default=0, ge=0),
+        code_class: str | None = Query(
+            default=None, pattern="^(2xx|4xx|5xx)$"),
+        method: str | None = Query(default=None),
+    ) -> AuditPage:
+        events = app.state.audit.read_events(EventType.API_ACCESS)
+        if code_class:
+            lo = int(code_class[0]) * 100
+            hi = lo + 100
+            events = [
+                e for e in events
+                if lo <= int(e.get("response_code") or 0) < hi
+            ]
+        if method:
+            events = [e for e in events if e.get("method") == method]
+        return _paginate(events, limit, offset)
 
     # ----- Sources (uploads CSV / XLSX / Parquet) ---------------------
     @app.post("/sources/upload", response_model=SourceMetadata, status_code=201)
@@ -516,6 +562,13 @@ def _resolve_run(app: FastAPI, run_id: str | None) -> dict[str, Any]:
     if cached is None:
         raise HTTPException(status_code=404, detail=f"Unknown run_id: {run_id}")
     return cached
+
+
+def _paginate(events: list[dict[str, Any]], limit: int, offset: int) -> AuditPage:
+    """Slice `events` for the requested page; `total` is pre-slice count."""
+    total = len(events)
+    page = events[offset: offset + limit]
+    return AuditPage(events=page, total=total, limit=limit, offset=offset)
 
 
 def _cache_result(app: FastAPI, result: dict[str, Any]) -> None:

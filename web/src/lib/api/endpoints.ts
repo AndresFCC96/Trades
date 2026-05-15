@@ -15,7 +15,10 @@ import type {
   SourcePreview,
   KafkaConnectRequest,
   KafkaStatus,
-  AuditEvent,
+  AuditPage,
+  AuditTradesFilters,
+  AuditPipelineFilters,
+  AuditAccessFilters,
   RulesResponse,
   SettingsResponse,
 } from './types';
@@ -55,9 +58,23 @@ export const downloadQualityReport = (format: 'json' | 'csv', runId?: string) =>
   );
 
 // ----- Audit ----------------------------------------------------------
-export const getAuditTrades = () => request<AuditEvent[]>('/audit/trades');
-export const getAuditPipeline = () => request<AuditEvent[]>('/audit/pipeline');
-export const getAuditAccess = () => request<AuditEvent[]>('/audit/access');
+function qs(params: Record<string, unknown>): string {
+  const usp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== '') usp.set(k, String(v));
+  }
+  const s = usp.toString();
+  return s ? `?${s}` : '';
+}
+
+export const getAuditTrades = (filters: AuditTradesFilters = {}) =>
+  request<AuditPage>(`/audit/trades${qs(filters)}`);
+
+export const getAuditPipeline = (filters: AuditPipelineFilters = {}) =>
+  request<AuditPage>(`/audit/pipeline${qs(filters)}`);
+
+export const getAuditAccess = (filters: AuditAccessFilters = {}) =>
+  request<AuditPage>(`/audit/access${qs(filters)}`);
 
 // ----- Sources --------------------------------------------------------
 export async function uploadSource(file: File): Promise<SourceMetadata> {

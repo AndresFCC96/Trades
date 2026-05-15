@@ -164,3 +164,18 @@ class SettingsUpdateRequest(BaseModel):
     recursively; lists/scalars replace wholesale.
     """
     patch: dict[str, Any]
+
+
+# =====================================================================
+# Audit (paginated)
+# =====================================================================
+class AuditPage(BaseModel):
+    """Paginated wrapper around audit events.
+
+    `total` is the count AFTER filters but BEFORE limit/offset, so the
+    client can build pagination controls without re-querying.
+    """
+    events: list[dict[str, Any]]
+    total: int
+    limit: int
+    offset: int

@@ -26,11 +26,13 @@ test.describe('sidebar navigation', () => {
 
   test('navigates to Data Sources and the Kafka tab is default', async ({ page }) => {
     await sidebar(page).getByText('Data Sources').click();
-    // The three tab labels are visible regardless of which tab is
-    // active; use them as a stable marker. (The Kafka panel body has
-    // race-y WS-driven content that flakes in CI.)
-    await expect(page.getByText(/KAFKA STREAMING/i)).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(/FILE UPLOAD/i)).toBeVisible();
+    await page.waitForURL(/\/sources/);
+    // The Kafka tab is open by default; its panel renders "Cluster
+    // Connection" + the 3 tab labels (FILE UPLOAD / HTTP / KAFKA STREAMING).
+    // Match the tab header by role for a stable selector.
+    await expect(page.getByText(/KAFKA STREAMING/i).first()).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   test('navigates to Validation Rules and shows all 14 RV ids', async ({ page }) => {

@@ -27,7 +27,12 @@ describe('<Overview />', () => {
   it('renders the empty state when there is no history', async () => {
     (endpoints.getPipelineHistory as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     (endpoints.getBusinessReport as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('no run'));
-    (endpoints.getAuditTrades as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (endpoints.getAuditTrades as ReturnType<typeof vi.fn>).mockResolvedValue({
+      events: [],
+      total: 0,
+      limit: 10_000,
+      offset: 0,
+    });
 
     render(withQueryClient(<Overview />));
 
@@ -63,7 +68,12 @@ describe('<Overview />', () => {
       by_asset_class: [{ asset_class: 'equity' }],
       venue_concentration: [{ venue: 'NYSE' }],
     });
-    (endpoints.getAuditTrades as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (endpoints.getAuditTrades as ReturnType<typeof vi.fn>).mockResolvedValue({
+      events: [],
+      total: 0,
+      limit: 10_000,
+      offset: 0,
+    });
 
     // Pre-seed the active run so we don't race the auto-select useEffect.
     useStore.setState({ activeRun: run });

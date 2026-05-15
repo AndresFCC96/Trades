@@ -48,12 +48,17 @@ export function Overview() {
     retry: false,
   });
 
-  const { data: rejections = [] } = useQuery({
-    queryKey: ['audit-trades'],
-    queryFn: getAuditTrades,
+  // Pull a wide page so the "Top Rejections by Rule" aggregation has
+  // the full picture. If volumes grow we should add a server-side
+  // aggregate endpoint; for now 10k events is enough for the dashboard.
+  const { data: rejectionsPage } = useQuery({
+    queryKey: ['audit-trades', 'all', activeRun?.run_id],
+    queryFn: () =>
+      getAuditTrades({ limit: 10_000, run_id: activeRun?.run_id }),
     enabled: hasRun,
     retry: false,
   });
+  const rejections = rejectionsPage?.events ?? [];
 
   // ------- Derived series (computed before any early return so the hook
   //         order stays stable across renders) ----------------------

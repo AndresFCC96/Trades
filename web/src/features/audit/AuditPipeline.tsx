@@ -23,15 +23,18 @@ type RunGroup = {
 export function AuditPipeline() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  const { data: events = [], isLoading } = useQuery({
+  // Pull a wide slice (4 events per run, so up to ~2500 runs) and
+  // group client-side; switching to server-side grouping is a backlog.
+  const { data: pageData, isLoading } = useQuery({
     queryKey: ['audit-pipeline'],
-    queryFn: getAuditPipeline,
+    queryFn: () => getAuditPipeline({ limit: 10_000 }),
     refetchInterval: 10_000,
   });
+  const events = pageData?.events ?? [];
 
   const groups: RunGroup[] = useMemo(() => {
     const m = new Map<string, RunGroup>();
-    for (const ev of events as AuditEvent[]) {
+    for (const ev of events) {
       const runId = (ev.pipeline_run_id as string) ?? 'unknown';
       const ts = (ev.timestamp_utc as string) ?? '';
       const trades_in = Number(ev.trades_in ?? 0);

@@ -62,15 +62,15 @@ class TestE2EDataframeFlow:
         assert business["summary"]["total_trades"] >= 0
         assert 0.0 <= quality["score"] <= 100.0
 
-        # Audit pipeline tiene las 4 etapas del run
-        audit_pipeline = client.get("/audit/pipeline").json()
+        # Audit pipeline tiene las 4 etapas del run (paginated wrapper now)
+        audit_pipeline = client.get("/audit/pipeline").json()["events"]
         stages_for_run = {
             e["stage"] for e in audit_pipeline if e["pipeline_run_id"] == run_id
         }
         assert stages_for_run == {"generate", "extract", "validate", "transform"}
 
         # Pseudonimización en /audit/trades
-        audit_trades = client.get("/audit/trades").json()
+        audit_trades = client.get("/audit/trades").json()["events"]
         for ev in audit_trades:
             if ev.get("field") in ("trader_id", "counterparty_id") and ev.get("value_received"):
                 v = ev["value_received"]
