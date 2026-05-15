@@ -1,0 +1,37 @@
+/* ============================================================
+ * Design tokens — Terminal direction (prototype A)
+ * Dark default + light variant, both toggled by [data-theme] on <html>.
+ * Accent colors (ok/warn/crit/info/accent) are theme-invariant.
+ * ============================================================ */
+
+:root[data-theme='dark'] {
+  --bg: #0a0c10;
+  --panel: #11151c;
+  --panel-2: #1a1f2a;
+  --border: #1c2230;
+  --border-soft: #161a24;
+  --fg: #e6e8ec;
+  --muted: #6a7484;
+  --row-hover: rgba(255, 255, 255, 0.02);
+  --row-hover-strong: rgba(255, 255, 255, 0.03);
+  --knob: #0a0c10;
+  --grid-line: rgba(255, 255, 255, 0.015);
+  --scrollbar-thumb: #1c2230;
+  --scrollbar-thumb-hover: #2a3142;
+}
+
+:root[data-theme='light'] {
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --panel-2: #e8eaee;
+  --border: rgba(10, 12, 16, 0.1);
+  --border-soft: rgba(10, 12, 16, 0.05);
+  --fg: #0a0c10;
+  --muted: #5a6373;
+  --row-hover: rgba(10, 12, 16, 0.025);
+  --row-hover-strong: rgba(10, 12, 16, 0.04);
+  --knob: #ffffff;
+  --grid-line: rgba(10, 12, 16, 0.025);
+  --scrollbar-thumb: rgba(10, 12, 16, 0.15);
+  --scrollbar-thumb-hover: rgba(10, 12, 16, 0.3);
+}
