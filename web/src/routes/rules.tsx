@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Placeholder } from '@/components/ui/Placeholder';
+import { Rules } from '@/features/rules/Rules';
 
 export const Route = createFileRoute('/rules')({
-  component: () => <Placeholder title="Validation Rules" />,
+  component: Rules,
 });
