@@ -331,11 +331,15 @@ class KafkaTradeConsumer:
 def make_pipeline_callback(
     config: dict[str, Any],
     on_run: Callable[[dict[str, Any]], None] | None = None,
+    disabled_rules: Callable[[], set[str]] | None = None,
 ) -> BatchCallback:
     """Devuelve un callback que ejecuta run_pipeline con el batch recibido.
 
     `on_run` se llama al final con el dict resultado del pipeline
     (útil para que la API agregue al historial en `app.state.history`).
+    `disabled_rules` (si se pasa) se invoca por cada batch y devuelve
+    el set actual de reglas saltadas — así un cambio vía /rules afecta
+    el siguiente flush sin reconectar el consumer.
     """
     # Import diferido para evitar ciclos cuando este módulo se importa
     # desde la API antes de que el pipeline_runner esté listo.
@@ -346,6 +350,7 @@ def make_pipeline_callback(
             mode="stream",
             prebuilt_df=df,
             config=config,
+            disabled_rules=disabled_rules() if disabled_rules else None,
         )
         if on_run is not None:
             on_run(result)

@@ -66,6 +66,27 @@ class TestRules:
         r = client.patch("/rules/RV-99", json={"enabled": False})
         assert r.status_code == 404
 
+    def test_disabled_rule_is_skipped_by_validator(self, client):
+        # Baseline: a normal run rejects some trades for RV-05 (the
+        # noisy synthetic generator's most common offender) when the
+        # rule is enabled.
+        client.patch("/rules/RV-05", json={"enabled": False})
+        r = client.post(
+            "/pipeline/run",
+            json={"n_trades": 100, "seed": 1, "mode": "dataframe"},
+        )
+        assert r.status_code == 200
+        summary = r.json()["validation_summary"]
+        # The skipped rule contributes zero rejections.
+        assert summary["rejected_by_rule"]["RV-05"] == 0
+        # Other rules can still report >= 0 rejections; we don't assert
+        # an exact total because synthetic data is stochastic, but the
+        # skipped-rules array must contain RV-05.
+        assert "RV-05" in summary.get("skipped_rules", [])
+
+        # Re-enable for a clean state across tests.
+        client.patch("/rules/RV-05", json={"enabled": True})
+
 
 # =====================================================================
 # /settings

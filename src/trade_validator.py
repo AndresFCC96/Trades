@@ -31,12 +31,23 @@ RuleFn = Callable[[pl.DataFrame], RuleResult]
 
 
 class TradeValidator:
-    """Aplica las 14 reglas RV-XX en orden y registra rechazos en auditoría."""
+    """Aplica las 14 reglas RV-XX en orden y registra rechazos en auditoría.
 
-    def __init__(self, config: dict[str, Any], audit_logger: AuditLogger) -> None:
+    `disabled_rules` permite saltar reglas individuales sin recompilar la
+    lista de reglas. La regla saltada queda en el summary con `0` y un
+    flag `skipped: True` para distinguirla de "no produjo rechazos".
+    """
+
+    def __init__(
+        self,
+        config: dict[str, Any],
+        audit_logger: AuditLogger,
+        disabled_rules: set[str] | None = None,
+    ) -> None:
         self.config = config
         self.cfg = config["validator"]
         self.audit = audit_logger
+        self.disabled_rules: set[str] = set(disabled_rules or [])
 
         gen_cfg = config.get("generator", {})
         self.reference_prices: dict[str, float] = gen_cfg.get("reference_prices", {})
@@ -71,7 +82,13 @@ class TradeValidator:
             ("RV-14", "price outlier (IQR)",               self._rv14_outlier_iqr),
         ]
 
+        skipped: list[str] = []
         for rule_id, description, rule_fn in rules:
+            if rule_id in self.disabled_rules:
+                summary["rejected_by_rule"][rule_id] = 0
+                skipped.append(rule_id)
+                logger.info("validator.%s SKIPPED (disabled by operator)", rule_id)
+                continue
             if df.is_empty():
                 summary["rejected_by_rule"][rule_id] = 0
                 continue
@@ -92,6 +109,7 @@ class TradeValidator:
 
         summary["total_out"] = len(df)
         summary["total_rejected"] = summary["total_in"] - summary["total_out"]
+        summary["skipped_rules"] = skipped
         return df, summary
 
     # =================================================================
@@ -398,5 +416,6 @@ def validate_trades(
     df: pl.DataFrame,
     config: dict[str, Any],
     audit_logger: AuditLogger,
+    disabled_rules: set[str] | None = None,
 ) -> tuple[pl.DataFrame, dict[str, Any]]:
-    return TradeValidator(config, audit_logger).validate(df)
+    return TradeValidator(config, audit_logger, disabled_rules=disabled_rules).validate(df)

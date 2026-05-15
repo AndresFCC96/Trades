@@ -152,9 +152,8 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     # Capped at MAX_RESULTS to bound memory; oldest entry is evicted FIFO.
     app.state.results_by_run_id: dict[str, dict[str, Any]] = {}
     app.state.kafka_consumer: KafkaTradeConsumer | None = None
-    # Disabled rule IDs (toggle-only state for now; validator still runs
-    # them — wiring the skip is a backlog item once we move the rule
-    # registry out of trade_validator.py).
+    # Disabled rule IDs. /rules toggles this set; the next pipeline run
+    # (sync, upload or Kafka batch) reads it and skips those rules.
     app.state.disabled_rules: set[str] = set()
 
     # CORS — abierto en dev; restringir en producción vía settings.yaml
@@ -211,6 +210,7 @@ def _register_routes(app: FastAPI) -> None:
                 null_rate=req.null_rate,
                 outlier_rate=req.outlier_rate,
                 config=cfg,
+                disabled_rules=set(app.state.disabled_rules),
             )
         except PipelineStageError as e:
             raise HTTPException(
@@ -350,7 +350,12 @@ def _register_routes(app: FastAPI) -> None:
         except SourceError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
         try:
-            result = run_pipeline(mode="upload", prebuilt_df=df, config=cfg)
+            result = run_pipeline(
+                mode="upload",
+                prebuilt_df=df,
+                config=cfg,
+                disabled_rules=set(app.state.disabled_rules),
+            )
         except PipelineStageError as e:
             raise HTTPException(
                 status_code=500,
@@ -382,7 +387,9 @@ def _register_routes(app: FastAPI) -> None:
         if prev is not None and prev.get_status()["state"] not in ("stopped", "error"):
             await prev.stop()
         callback = make_pipeline_callback(
-            cfg, on_run=lambda r: _record_streamed_run(app, r)
+            cfg,
+            on_run=lambda r: _record_streamed_run(app, r),
+            disabled_rules=lambda: set(app.state.disabled_rules),
         )
         app.state.kafka_consumer = KafkaTradeConsumer(cfg, callback)
         return KafkaStatusResponse(**app.state.kafka_consumer.get_status())

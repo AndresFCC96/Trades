@@ -54,6 +54,7 @@ def run_pipeline(
     persist_raw: bool = False,
     http_client=None,
     prebuilt_df: pl.DataFrame | None = None,
+    disabled_rules: set[str] | None = None,
 ) -> dict[str, Any]:
     """Ejecuta el pipeline completo y devuelve los tres reportes + metadatos.
 
@@ -111,7 +112,7 @@ def run_pipeline(
     # --------- Stage 3: validate -------------------------------------
     df_valid, validation_summary = _stage(
         audit, run_id, "validate",
-        lambda: validate_trades(df_extracted, cfg, audit),
+        lambda: validate_trades(df_extracted, cfg, audit, disabled_rules=disabled_rules),
         in_count=len(df_extracted),
         out_count_fn=lambda r: len(r[0]),
     )
