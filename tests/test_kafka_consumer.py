@@ -18,7 +18,6 @@ from pathlib import Path
 import polars as pl
 import pytest
 from fastapi.testclient import TestClient
-
 from src.api.main import create_app
 from src.audit import load_config
 from src.kafka_consumer import (

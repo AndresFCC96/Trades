@@ -8,13 +8,11 @@ from __future__ import annotations
 
 import copy
 import io
-import json
 from pathlib import Path
 
 import polars as pl
 import pytest
 from fastapi.testclient import TestClient
-
 from src.api.main import create_app
 from src.audit import load_config
 from src.sources import (
@@ -49,11 +47,11 @@ def cfg(real_cfg, tmp_path) -> dict:
 @pytest.fixture
 def csv_bytes() -> bytes:
     return (
-        "trade_id,timestamp,instrument,asset_class,side,quantity,price,"
-        "notional,currency,counterparty_id,trader_id,venue,status\n"
-        "T1,2026-01-01T00:00:00,AAPL,equity,BUY,10,180.0,1800.0,USD,CP-1,TR-1,NYSE,executed\n"
-        "T2,2026-01-01T01:00:00,MSFT,equity,SELL,5,380.0,1900.0,USD,CP-2,TR-2,NASDAQ,executed\n"
-    ).encode("utf-8")
+        b"trade_id,timestamp,instrument,asset_class,side,quantity,price,"
+        b"notional,currency,counterparty_id,trader_id,venue,status\n"
+        b"T1,2026-01-01T00:00:00,AAPL,equity,BUY,10,180.0,1800.0,USD,CP-1,TR-1,NYSE,executed\n"
+        b"T2,2026-01-01T01:00:00,MSFT,equity,SELL,5,380.0,1900.0,USD,CP-2,TR-2,NASDAQ,executed\n"
+    )
 
 
 @pytest.fixture
@@ -104,9 +102,9 @@ class TestPreviewAndLoad:
     def test_set_mapping_renames_on_load(self, cfg):
         # CSV con nombres de columna distintos al TradeSchema
         raw = (
-            "id,ts,instr,ac,sd,qty,px,nt,ccy,cp,tr,vn,st\n"
-            "T1,2026-01-01T00:00:00,AAPL,equity,BUY,10,180.0,1800.0,USD,CP-1,TR-1,NYSE,executed\n"
-        ).encode("utf-8")
+            b"id,ts,instr,ac,sd,qty,px,nt,ccy,cp,tr,vn,st\n"
+            b"T1,2026-01-01T00:00:00,AAPL,equity,BUY,10,180.0,1800.0,USD,CP-1,TR-1,NYSE,executed\n"
+        )
         meta = register_upload("trades.csv", raw, cfg)
         set_mapping(cfg, meta["source_id"], {
             "id": "trade_id",

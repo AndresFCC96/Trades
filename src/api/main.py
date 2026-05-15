@@ -66,9 +66,11 @@ from src.sources import (
     get_source,
     list_sources,
     load_dataframe,
-    preview as source_preview,
     register_upload,
     set_mapping,
+)
+from src.sources import (
+    preview as source_preview,
 )
 
 logger = logging.getLogger(__name__)

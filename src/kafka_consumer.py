@@ -29,7 +29,7 @@ import logging
 import os
 import time
 from collections import deque
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
