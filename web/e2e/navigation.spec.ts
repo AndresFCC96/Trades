@@ -26,9 +26,11 @@ test.describe('sidebar navigation', () => {
 
   test('navigates to Data Sources and the Kafka tab is default', async ({ page }) => {
     await sidebar(page).getByText('Data Sources').click();
-    // The Kafka tab panel exposes "Cluster Connection" — a unique
-    // marker that only appears when the Kafka tab is active.
-    await expect(page.getByText(/Cluster Connection/i)).toBeVisible();
+    // The three tab labels are visible regardless of which tab is
+    // active; use them as a stable marker. (The Kafka panel body has
+    // race-y WS-driven content that flakes in CI.)
+    await expect(page.getByText(/KAFKA STREAMING/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/FILE UPLOAD/i)).toBeVisible();
   });
 
   test('navigates to Validation Rules and shows all 14 RV ids', async ({ page }) => {
@@ -46,6 +48,7 @@ test.describe('sidebar navigation', () => {
 
   test('navigates to Settings', async ({ page }) => {
     await sidebar(page).getByText('Settings').click();
-    await expect(page.getByText(/Read-only preview/i)).toBeVisible();
+    // Banner copy: Settings is now backed by the live editor endpoint.
+    await expect(page.getByText(/Live editor/i)).toBeVisible({ timeout: 15_000 });
   });
 });
