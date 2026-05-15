@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { getAuditTrades } from '@/lib/api/endpoints';
+import { getAuditTrades, getRules, patchRule } from '@/lib/api/endpoints';
 import { fmt } from '@/lib/fmt';
 
 import { Panel } from '@/components/ui/Panel';
@@ -10,17 +10,24 @@ import { Badge, type Tone } from '@/components/ui/Badge';
 import { Toggle } from '@/components/ui/Toggle';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { useStore } from '@/lib/store';
-import type { AuditEvent } from '@/lib/api/types';
-import { RULES, GROUP_META, type RuleDef, type RuleGroup } from './catalog';
+import type { AuditEvent, RulesResponse } from '@/lib/api/types';
+import { RULES as FALLBACK_RULES, GROUP_META, type RuleDef, type RuleGroup } from './catalog';
 
 export function Rules() {
+  const qc = useQueryClient();
   const addToast = useStore((s) => s.addToast);
   const [openGroups, setOpenGroups] = useState<Record<RuleGroup, boolean>>({
     critical: true,
     business: true,
     context: true,
   });
-  const [disabled, setDisabled] = useState<Record<string, boolean>>({});
+
+  const { data: rulesData } = useQuery({
+    queryKey: ['rules'],
+    queryFn: getRules,
+    retry: false,
+    refetchInterval: 30_000,
+  });
 
   const { data: rejections = [] } = useQuery({
     queryKey: ['audit-trades'],
@@ -28,6 +35,29 @@ export function Rules() {
     retry: false,
     refetchInterval: 15_000,
   });
+
+  const patchMut = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      patchRule(id, enabled),
+    onSuccess: (data) => {
+      qc.setQueryData(['rules'], data);
+    },
+    onError: (e) =>
+      addToast(`Toggle failed · ${(e as Error).message}`, 'crit'),
+  });
+
+  // Fallback to the static catalog when the backend hasn't responded yet
+  // (or is down). The shape matches RulesResponse.rules.
+  const rules: RulesResponse['rules'] = useMemo(() => {
+    if (rulesData) return rulesData.rules;
+    return FALLBACK_RULES.map((r) => ({
+      id: r.id,
+      group: r.group,
+      name: r.name,
+      description: r.desc,
+      enabled: true,
+    }));
+  }, [rulesData]);
 
   // Aggregate rejection counts per rule_id from the audit log.
   const counts = useMemo(() => {
@@ -39,39 +69,32 @@ export function Rules() {
     return m;
   }, [rejections]);
 
-  const enabledCount = RULES.length - Object.values(disabled).filter(Boolean).length;
+  const disabledCount = rules.filter((r) => !r.enabled).length;
+  const enabledCount = rules.length - disabledCount;
 
-  const onToggle = (id: string) => {
-    setDisabled((d) => ({ ...d, [id]: !d[id] }));
-    addToast(`${id} ${disabled[id] ? 'enabled' : 'disabled'} (local-only)`, 'warn');
+  const onToggle = (id: string, currentlyEnabled: boolean) => {
+    patchMut.mutate({ id, enabled: !currentlyEnabled });
+    addToast(`${id} ${currentlyEnabled ? 'disabled' : 'enabled'}`, 'ok');
   };
 
   return (
     <div className="p-4 flex flex-col gap-3">
       <Panel
-        title={`14 Rules · ${enabledCount} ENABLED · ${RULES.length - enabledCount} DISABLED`}
-        right={
-          <div className="flex gap-1.5">
-            <Btn kind="solid" disabled>
-              CONFIGURE THRESHOLDS
-            </Btn>
-            <Btn kind="primary" disabled>
-              SAVE CHANGES
-            </Btn>
-          </div>
-        }
+        title={`14 Rules · ${enabledCount} ENABLED · ${disabledCount} DISABLED`}
       >
         <div className="font-mono text-sm text-muted">
-          Configura las reglas de validación. Toggles y thresholds son visuales
-          hasta que el backend exponga <span className="text-fg">/rules</span> y{' '}
-          <span className="text-fg">/settings</span>. Los valores actuales viven en{' '}
-          <span className="text-fg">config/settings.yaml</span>.
+          Toggles persisten en memoria del servidor vía{' '}
+          <span className="text-fg">PATCH /rules/:id</span>. Los thresholds se
+          editan desde la pantalla{' '}
+          <span className="text-fg">Settings</span>. NOTA: el validator
+          siempre corre las 14 reglas; el skip real por toggle es un refactor en backlog.
         </div>
       </Panel>
 
       {(Object.entries(GROUP_META) as Array<[RuleGroup, (typeof GROUP_META)[RuleGroup]]>).map(
         ([gid, g]) => {
-          const items = RULES.filter((r) => r.group === gid);
+          const items = rules.filter((r) => r.group === gid);
+          const catalogById = new Map(FALLBACK_RULES.map((r) => [r.id, r]));
           const open = openGroups[gid];
           const groupRejected = items.reduce(
             (acc, r) => acc + (counts.get(r.id) ?? 0),
@@ -104,10 +127,17 @@ export function Rules() {
                   {items.map((r) => (
                     <RuleCard
                       key={r.id}
-                      rule={r}
+                      rule={{
+                        id: r.id,
+                        group: r.group,
+                        name: r.name,
+                        desc: r.description,
+                        threshold:
+                          catalogById.get(r.id)?.threshold ?? '—',
+                      }}
                       rejected={counts.get(r.id) ?? 0}
-                      enabled={!disabled[r.id]}
-                      onToggle={() => onToggle(r.id)}
+                      enabled={r.enabled}
+                      onToggle={() => onToggle(r.id, r.enabled)}
                     />
                   ))}
                 </div>

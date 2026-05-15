@@ -1,4 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+import { getSettings, putSettings } from '@/lib/api/endpoints';
+import { useStore } from '@/lib/store';
 
 import { Panel } from '@/components/ui/Panel';
 import { Btn } from '@/components/ui/Btn';
@@ -24,15 +28,16 @@ export function Settings() {
       <div
         className="px-3 py-2 font-mono text-xs"
         style={{
-          background: 'rgba(251,191,36,0.06)',
-          border: '1px solid rgba(251,191,36,0.3)',
-          borderLeft: '3px solid #fbbf24',
-          color: '#fbbf24',
+          background: 'rgba(96,165,250,0.06)',
+          border: '1px solid rgba(96,165,250,0.3)',
+          borderLeft: '3px solid #60a5fa',
+          color: '#60a5fa',
         }}
       >
-        Read-only preview. Edits in this UI do not persist yet —{' '}
-        <span className="text-fg">config/settings.yaml</span> is the source of truth.
-        Live editing arrives when the backend exposes <code>GET/PUT /settings</code>.
+        Live editor backed by <code>GET/PUT /settings</code>. Changes apply
+        immediately to in-memory config (next run uses them). They are NOT
+        persisted to <code>config/settings.yaml</code> on disk — a server
+        restart drops the patch.
       </div>
 
       <div className="flex border-b border-border">
@@ -55,7 +60,7 @@ export function Settings() {
       {tab === 'general' && (
         <Placeholder
           title="General"
-          body="Pipeline name, version, log level and timezone live in config/settings.yaml under `pipeline:`."
+          body="Pipeline name, version, log level and timezone live in `pipeline:`. Editable via PUT /settings with a patch like {pipeline:{log_level:'DEBUG'}}."
         />
       )}
       {tab === 'catalogs' && (
@@ -79,7 +84,7 @@ export function Settings() {
       {tab === 'kafka' && (
         <Placeholder
           title="Kafka Clusters"
-          body="Bootstrap servers, topic, group_id, security_protocol and buffer policy live under `kafka:`. Wire a live edit endpoint or use `/kafka/connect` for ad-hoc overrides."
+          body="Bootstrap servers, topic, group_id, security_protocol and buffer policy live under `kafka:`. Use POST /kafka/connect for ad-hoc consumer overrides."
         />
       )}
     </div>
@@ -87,26 +92,89 @@ export function Settings() {
 }
 
 // =====================================================================
-// Validator thresholds — visual editor, no persistence yet
+// Validator thresholds — read from /settings, write via /settings PUT
 // =====================================================================
+type Critical = {
+  notional_tolerance?: number;
+  timestamp_window_days?: number;
+};
+type Business = {
+  price_band_pct?: number;
+  max_notional_per_trader_usd?: number;
+  max_counterparty_concentration_pct?: number;
+};
+type Contextual = {
+  iqr_factor?: number;
+};
+type Validator = { critical?: Critical; business?: Business; contextual?: Contextual };
+type SettingsShape = { validator?: Validator };
+
 function ThresholdsTab() {
-  const [notionalTol, setNotionalTol] = useState('0.01');
-  const [tsWindowDays, setTsWindowDays] = useState('30');
-  const [priceBandPct, setPriceBandPct] = useState('0.20');
-  const [maxTraderNotional, setMaxTraderNotional] = useState('5000000.0');
-  const [maxCounterpartyPct, setMaxCounterpartyPct] = useState('0.40');
-  const [iqrFactor, setIqrFactor] = useState('3.0');
+  const qc = useQueryClient();
+  const addToast = useStore((s) => s.addToast);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['settings'],
+    queryFn: getSettings,
+    retry: false,
+  });
+
+  const [notionalTol, setNotionalTol] = useState('');
+  const [tsWindowDays, setTsWindowDays] = useState('');
+  const [priceBandPct, setPriceBandPct] = useState('');
+  const [maxTraderNotional, setMaxTraderNotional] = useState('');
+  const [maxCounterpartyPct, setMaxCounterpartyPct] = useState('');
+  const [iqrFactor, setIqrFactor] = useState('');
+
+  // Hydrate locally when settings arrive (and reset on Discard)
+  useEffect(() => {
+    if (!data) return;
+    const v = (data.settings as SettingsShape).validator ?? {};
+    setNotionalTol(String(v.critical?.notional_tolerance ?? ''));
+    setTsWindowDays(String(v.critical?.timestamp_window_days ?? ''));
+    setPriceBandPct(String(v.business?.price_band_pct ?? ''));
+    setMaxTraderNotional(String(v.business?.max_notional_per_trader_usd ?? ''));
+    setMaxCounterpartyPct(
+      String(v.business?.max_counterparty_concentration_pct ?? '')
+    );
+    setIqrFactor(String(v.contextual?.iqr_factor ?? ''));
+  }, [data]);
+
+  const saveMut = useMutation({
+    mutationFn: () =>
+      putSettings({
+        validator: {
+          critical: {
+            notional_tolerance: Number(notionalTol),
+            timestamp_window_days: Number(tsWindowDays),
+          },
+          business: {
+            price_band_pct: Number(priceBandPct),
+            max_notional_per_trader_usd: Number(maxTraderNotional),
+            max_counterparty_concentration_pct: Number(maxCounterpartyPct),
+          },
+          contextual: { iqr_factor: Number(iqrFactor) },
+        },
+      }),
+    onSuccess: (resp) => {
+      qc.setQueryData(['settings'], resp);
+      addToast('Settings saved · applies to next run', 'ok');
+    },
+    onError: (e) => addToast(`Save failed · ${(e as Error).message}`, 'crit'),
+  });
 
   const yaml = `validator:
   critical:
-    notional_tolerance: ${notionalTol}
-    timestamp_window_days: ${tsWindowDays}
+    notional_tolerance: ${notionalTol || '—'}
+    timestamp_window_days: ${tsWindowDays || '—'}
   business:
-    price_band_pct: ${priceBandPct}
-    max_notional_per_trader_usd: ${maxTraderNotional}
-    max_counterparty_concentration_pct: ${maxCounterpartyPct}
+    price_band_pct: ${priceBandPct || '—'}
+    max_notional_per_trader_usd: ${maxTraderNotional || '—'}
+    max_counterparty_concentration_pct: ${maxCounterpartyPct || '—'}
   contextual:
-    iqr_factor: ${iqrFactor}`;
+    iqr_factor: ${iqrFactor || '—'}`;
+
+  const onDiscard = () => qc.invalidateQueries({ queryKey: ['settings'] });
 
   return (
     <div className="grid gap-3" style={{ gridTemplateColumns: '1fr 1fr' }}>
@@ -116,6 +184,7 @@ function ThresholdsTab() {
             value={notionalTol}
             onChange={(e) => setNotionalTol(e.target.value)}
             style={inputBoxStyle}
+            disabled={isLoading}
           />
         </Field>
         <Field label="TIMESTAMP_WINDOW_DAYS" hint="RV-06">
@@ -123,6 +192,7 @@ function ThresholdsTab() {
             value={tsWindowDays}
             onChange={(e) => setTsWindowDays(e.target.value)}
             style={inputBoxStyle}
+            disabled={isLoading}
           />
         </Field>
       </Panel>
@@ -132,6 +202,7 @@ function ThresholdsTab() {
             value={priceBandPct}
             onChange={(e) => setPriceBandPct(e.target.value)}
             style={inputBoxStyle}
+            disabled={isLoading}
           />
         </Field>
         <Field label="MAX_NOTIONAL_PER_TRADER_USD" hint="RV-09">
@@ -139,6 +210,7 @@ function ThresholdsTab() {
             value={maxTraderNotional}
             onChange={(e) => setMaxTraderNotional(e.target.value)}
             style={inputBoxStyle}
+            disabled={isLoading}
           />
         </Field>
         <Field label="MAX_COUNTERPARTY_CONCENTRATION_PCT" hint="RV-11">
@@ -146,6 +218,7 @@ function ThresholdsTab() {
             value={maxCounterpartyPct}
             onChange={(e) => setMaxCounterpartyPct(e.target.value)}
             style={inputBoxStyle}
+            disabled={isLoading}
           />
         </Field>
       </Panel>
@@ -155,6 +228,7 @@ function ThresholdsTab() {
             value={iqrFactor}
             onChange={(e) => setIqrFactor(e.target.value)}
             style={inputBoxStyle}
+            disabled={isLoading}
           />
         </Field>
       </Panel>
@@ -172,11 +246,17 @@ function ThresholdsTab() {
           {yaml}
         </pre>
         <div className="mt-2.5 flex gap-1.5 items-center">
-          <Btn kind="primary" disabled>
-            SAVE
+          <Btn
+            kind="primary"
+            onClick={() => saveMut.mutate()}
+            disabled={saveMut.isPending || isLoading}
+          >
+            {saveMut.isPending ? 'SAVING…' : 'SAVE'}
           </Btn>
-          <Btn disabled>DISCARD</Btn>
-          <Badge tone="warn">read-only · backend endpoint pending</Badge>
+          <Btn onClick={onDiscard} disabled={saveMut.isPending}>
+            DISCARD
+          </Btn>
+          <Badge tone="info">in-memory · server restart drops</Badge>
         </div>
       </Panel>
     </div>

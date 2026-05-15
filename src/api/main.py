@@ -51,8 +51,12 @@ from src.api.schemas import (
     KafkaStatusResponse,
     PipelineHistoryEntry,
     PipelineStatusResponse,
+    RulePatchRequest,
+    RulesResponse,
     RunPipelineRequest,
     RunPipelineResponse,
+    SettingsResponse,
+    SettingsUpdateRequest,
     SourceMappingRequest,
     SourceMetadata,
     SourcePreview,
@@ -77,6 +81,53 @@ logger = logging.getLogger(__name__)
 
 
 # =====================================================================
+# Rules catalog — mirrors trade_validator.py order and grouping.
+# `enabled` is sourced from app.state.disabled_rules at request time.
+# =====================================================================
+_RULES_CATALOG: list[dict[str, str]] = [
+    {"id": "RV-01", "group": "critical", "name": "Required fields not null",
+     "description": "Ningún campo obligatorio puede ser null"},
+    {"id": "RV-02", "group": "critical", "name": "price > 0 and quantity > 0",
+     "description": "Precio y cantidad deben ser positivos"},
+    {"id": "RV-03", "group": "critical", "name": "side in {BUY, SELL}",
+     "description": "Side debe ser BUY o SELL"},
+    {"id": "RV-04", "group": "critical", "name": "trade_id unique in batch",
+     "description": "IDs únicos por batch"},
+    {"id": "RV-05", "group": "critical", "name": "|notional − price·qty| ≤ tol",
+     "description": "Coherencia notional vs price·qty"},
+    {"id": "RV-06", "group": "critical", "name": "timestamp within window",
+     "description": "Timestamp dentro de ventana válida"},
+    {"id": "RV-07", "group": "business", "name": "lot size by asset_class",
+     "description": "Tamaño de lote mínimo por clase"},
+    {"id": "RV-08", "group": "business", "name": "price within band of reference",
+     "description": "Precio dentro de banda de referencia"},
+    {"id": "RV-09", "group": "business", "name": "trader notional ≤ limit",
+     "description": "Notional acumulado del trader bajo límite"},
+    {"id": "RV-10", "group": "business", "name": "currency ↔ asset_class",
+     "description": "Moneda coherente con asset_class"},
+    {"id": "RV-11", "group": "business", "name": "counterparty ≤ % batch",
+     "description": "Counterparty no excede % del batch"},
+    {"id": "RV-12", "group": "business", "name": "venue in whitelist",
+     "description": "Venue autorizado por asset_class"},
+    {"id": "RV-13", "group": "context", "name": "wash trading detection",
+     "description": "Detección heurística de wash trading"},
+    {"id": "RV-14", "group": "context", "name": "price outlier (IQR)",
+     "description": "Outlier de precio por IQR"},
+]
+
+
+def _deep_merge(dst: dict[str, Any], src: dict[str, Any]) -> None:
+    """In-place deep merge of `src` into `dst`.
+    Nested dicts merge recursively; lists/scalars replace wholesale.
+    """
+    for k, v in src.items():
+        if isinstance(v, dict) and isinstance(dst.get(k), dict):
+            _deep_merge(dst[k], v)
+        else:
+            dst[k] = v
+
+
+# =====================================================================
 # App factory
 # =====================================================================
 def create_app(config: dict[str, Any] | None = None) -> FastAPI:
@@ -95,6 +146,10 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     app.state.last_run = None
     app.state.history: list[dict[str, Any]] = []
     app.state.kafka_consumer: KafkaTradeConsumer | None = None
+    # Disabled rule IDs (toggle-only state for now; validator still runs
+    # them — wiring the skip is a backlog item once we move the rule
+    # registry out of trade_validator.py).
+    app.state.disabled_rules: set[str] = set()
 
     # CORS — abierto en dev; restringir en producción vía settings.yaml
     origins = api_cfg.get("cors_origins", ["*"])
@@ -358,6 +413,48 @@ def _register_routes(app: FastAPI) -> None:
                 topic=str(cfg["topic"]),
             )
         return KafkaStatusResponse(**consumer.get_status())
+
+    # ----- Rules (toggle catalog) -------------------------------------
+    @app.get("/rules", response_model=RulesResponse)
+    def rules_list() -> RulesResponse:
+        disabled = app.state.disabled_rules
+        rules = [
+            {
+                "id": r["id"],
+                "group": r["group"],
+                "name": r["name"],
+                "description": r["description"],
+                "enabled": r["id"] not in disabled,
+            }
+            for r in _RULES_CATALOG
+        ]
+        return RulesResponse(rules=rules, disabled_ids=sorted(disabled))
+
+    @app.patch("/rules/{rule_id}", response_model=RulesResponse)
+    def rules_patch(rule_id: str, req: RulePatchRequest) -> RulesResponse:
+        if rule_id not in {r["id"] for r in _RULES_CATALOG}:
+            raise HTTPException(status_code=404, detail=f"Unknown rule: {rule_id}")
+        if req.enabled:
+            app.state.disabled_rules.discard(rule_id)
+        else:
+            app.state.disabled_rules.add(rule_id)
+        return rules_list()
+
+    # ----- Settings (live editor) -------------------------------------
+    @app.get("/settings", response_model=SettingsResponse)
+    def settings_get() -> SettingsResponse:
+        return SettingsResponse(settings=copy.deepcopy(app.state.config))
+
+    @app.put("/settings", response_model=SettingsResponse)
+    def settings_put(req: SettingsUpdateRequest) -> SettingsResponse:
+        """Deep-merge `patch` into the in-memory settings dict.
+
+        Effect is immediate for any module that reads `app.state.config`
+        at call time (validator, generator, audit). Not persisted to
+        `config/settings.yaml` on disk — restart drops the patch.
+        """
+        _deep_merge(app.state.config, req.patch)
+        return SettingsResponse(settings=copy.deepcopy(app.state.config))
 
     @app.websocket("/ws/kafka/stats")
     async def kafka_stats_ws(websocket: WebSocket) -> None:

@@ -150,3 +150,23 @@ export type KafkaConnectRequest = {
 
 // ----- Audit ----------------------------------------------------------
 export type AuditEvent = Record<string, unknown>;
+
+// ----- Rules + Settings -----------------------------------------------
+export type RuleGroupApi = 'critical' | 'business' | 'context';
+
+export type RuleInfo = {
+  id: string;
+  group: RuleGroupApi;
+  name: string;
+  description: string;
+  enabled: boolean;
+};
+
+export type RulesResponse = {
+  rules: RuleInfo[];
+  disabled_ids: string[];
+};
+
+export type SettingsResponse = {
+  settings: Record<string, unknown>;
+};

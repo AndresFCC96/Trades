@@ -16,6 +16,8 @@ import type {
   KafkaConnectRequest,
   KafkaStatus,
   AuditEvent,
+  RulesResponse,
+  SettingsResponse,
 } from './types';
 
 // ----- Health ---------------------------------------------------------
@@ -75,3 +77,12 @@ export const kafkaResume = () =>
 export const kafkaStop = () =>
   request<KafkaStatus>('/kafka/stop', { method: 'POST' });
 export const getKafkaStatus = () => request<KafkaStatus>('/kafka/status');
+
+// ----- Rules + Settings (editor) -------------------------------------
+export const getRules = () => request<RulesResponse>('/rules');
+export const patchRule = (ruleId: string, enabled: boolean) =>
+  request<RulesResponse>(`/rules/${ruleId}`, { method: 'PATCH', body: { enabled } });
+
+export const getSettings = () => request<SettingsResponse>('/settings');
+export const putSettings = (patch: Record<string, unknown>) =>
+  request<SettingsResponse>('/settings', { method: 'PUT', body: { patch } });

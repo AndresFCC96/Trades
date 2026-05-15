@@ -129,3 +129,38 @@ class KafkaStatusResponse(BaseModel):
     last_error: str | None = None
     bootstrap_servers: str = ""
     topic: str = ""
+
+
+# =====================================================================
+# Rules + Settings (editor)
+# =====================================================================
+class RuleInfo(BaseModel):
+    """Status of one RV-XX rule (catalog + runtime state)."""
+    id: str
+    group: Literal["critical", "business", "context"]
+    name: str
+    description: str
+    enabled: bool
+
+
+class RulesResponse(BaseModel):
+    rules: list[RuleInfo]
+    disabled_ids: list[str]
+
+
+class RulePatchRequest(BaseModel):
+    enabled: bool
+
+
+class SettingsResponse(BaseModel):
+    """The in-memory settings dict served back to the UI."""
+    settings: dict[str, Any]
+
+
+class SettingsUpdateRequest(BaseModel):
+    """Partial deep-merge over the in-memory settings.
+
+    Only keys present in `patch` are overwritten. Nested dicts are merged
+    recursively; lists/scalars replace wholesale.
+    """
+    patch: dict[str, Any]
