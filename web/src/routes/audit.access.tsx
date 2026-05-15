@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Placeholder } from '@/components/ui/Placeholder';
+import { AuditAccess } from '@/features/audit/AuditAccess';
 
 export const Route = createFileRoute('/audit/access')({
-  component: () => <Placeholder title="Audit · API Access" />,
+  component: AuditAccess,
 });
