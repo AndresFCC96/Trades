@@ -127,6 +127,39 @@ jobs:
           sarif_file: semgrep.sarif
           category: semgrep
 
+  web:
+    name: Web (vitest + typecheck)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Check web/ presence
+        id: check
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [ -d web ] && [ -f web/package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No web/ yet - skipping web checks"
+          fi
+      - name: Install dependencies
+        if: steps.check.outputs.present == 'true'
+        run: npm ci || npm install
+      - name: Typecheck
+        if: steps.check.outputs.present == 'true'
+        run: npm run lint
+      - name: Vitest
+        if: steps.check.outputs.present == 'true'
+        run: npm test
+
   docker-build:
     name: Docker build smoke test
     runs-on: ubuntu-latest

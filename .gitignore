@@ -74,10 +74,12 @@ semgrep-report.json
 *.sarif
 
 # =====================================================================
-# Node (only used in docs/build for the docx generator)
+# Node (docs/build for docx; web/ for the dashboard)
 # =====================================================================
 node_modules/
 package-lock.json
+# But DO version web/package-lock.json so CI installs are reproducible
+!web/package-lock.json
 
 # =====================================================================
 # Secrets / local env

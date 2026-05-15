@@ -6,9 +6,11 @@ type Props = {
 
 export function Toggle({ checked, onChange, label }: Props) {
   return (
-    <label className="flex items-center gap-2 cursor-pointer font-mono text-sm text-fg">
+    <label
+      onClick={onChange}
+      className="flex items-center gap-2 cursor-pointer font-mono text-sm text-fg"
+    >
       <span
-        onClick={onChange}
         className="relative inline-block w-7 h-3.5 rounded-[2px]"
         style={{ background: checked ? '#4ade80' : 'var(--border)' }}
       >
