@@ -23,8 +23,8 @@ export function BusinessReportScreen() {
   const activeRun = useStore((s) => s.activeRun);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['business-report'],
-    queryFn: getBusinessReport,
+    queryKey: ['business-report', activeRun?.run_id],
+    queryFn: () => getBusinessReport(activeRun?.run_id),
     retry: false,
   });
 
@@ -179,10 +179,10 @@ function BusinessReportContent({
           )}
         </div>
         <div className="flex gap-1.5">
-          <Btn kind="solid" onClick={() => downloadBusinessReport('json')}>
+          <Btn kind="solid" onClick={() => downloadBusinessReport('json', runId)}>
             DOWNLOAD JSON
           </Btn>
-          <Btn kind="solid" onClick={() => downloadBusinessReport('csv')}>
+          <Btn kind="solid" onClick={() => downloadBusinessReport('csv', runId)}>
             DOWNLOAD CSV
           </Btn>
         </div>

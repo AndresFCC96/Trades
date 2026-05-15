@@ -35,8 +35,8 @@ export function QualityReportScreen() {
   const activeRun = useStore((s) => s.activeRun);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['quality-report'],
-    queryFn: getQualityReport,
+    queryKey: ['quality-report', activeRun?.run_id],
+    queryFn: () => getQualityReport(activeRun?.run_id),
     retry: false,
   });
 
@@ -184,10 +184,10 @@ function QualityReportContent({
           </div>
         </div>
         <div className="flex flex-col gap-1.5">
-          <Btn kind="solid" onClick={() => downloadQualityReport('json')}>
+          <Btn kind="solid" onClick={() => downloadQualityReport('json', runId)}>
             DOWNLOAD JSON
           </Btn>
-          <Btn kind="solid" onClick={() => downloadQualityReport('csv')}>
+          <Btn kind="solid" onClick={() => downloadQualityReport('csv', runId)}>
             DOWNLOAD CSV
           </Btn>
         </div>

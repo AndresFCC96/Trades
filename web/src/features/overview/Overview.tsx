@@ -42,8 +42,8 @@ export function Overview() {
   const hasRun = !!activeRun;
 
   const { data: business } = useQuery({
-    queryKey: ['business-report'],
-    queryFn: getBusinessReport,
+    queryKey: ['business-report', activeRun?.run_id],
+    queryFn: () => getBusinessReport(activeRun?.run_id),
     enabled: hasRun,
     retry: false,
   });

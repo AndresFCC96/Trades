@@ -32,15 +32,27 @@ export const getPipelineStatus = () => request<PipelineStatus>('/pipeline/status
 export const getPipelineHistory = () => request<Run[]>('/pipeline/history');
 
 // ----- Reports --------------------------------------------------------
-export const getBusinessReport = () => request<BusinessReport>('/reports/business');
+function runIdQuery(runId?: string): string {
+  return runId ? `?run_id=${encodeURIComponent(runId)}` : '';
+}
 
-export const getQualityReport = () => request<QualityReport>('/reports/quality');
+export const getBusinessReport = (runId?: string) =>
+  request<BusinessReport>(`/reports/business${runIdQuery(runId)}`);
 
-export const downloadBusinessReport = (format: 'json' | 'csv') =>
-  download(`/reports/business/download?format=${format}`, `business_report.${format}`);
+export const getQualityReport = (runId?: string) =>
+  request<QualityReport>(`/reports/quality${runIdQuery(runId)}`);
 
-export const downloadQualityReport = (format: 'json' | 'csv') =>
-  download(`/reports/quality/download?format=${format}`, `quality_report.${format}`);
+export const downloadBusinessReport = (format: 'json' | 'csv', runId?: string) =>
+  download(
+    `/reports/business/download?format=${format}${runId ? `&run_id=${encodeURIComponent(runId)}` : ''}`,
+    `business_report.${format}`,
+  );
+
+export const downloadQualityReport = (format: 'json' | 'csv', runId?: string) =>
+  download(
+    `/reports/quality/download?format=${format}${runId ? `&run_id=${encodeURIComponent(runId)}` : ''}`,
+    `quality_report.${format}`,
+  );
 
 // ----- Audit ----------------------------------------------------------
 export const getAuditTrades = () => request<AuditEvent[]>('/audit/trades');

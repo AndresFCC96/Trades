@@ -79,6 +79,8 @@ from src.sources import (
 
 logger = logging.getLogger(__name__)
 
+MAX_RESULTS = 50  # bound for results_by_run_id
+
 
 # =====================================================================
 # Rules catalog — mirrors trade_validator.py order and grouping.
@@ -145,6 +147,10 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     app.state.audit = AuditLogger(cfg)
     app.state.last_run = None
     app.state.history: list[dict[str, Any]] = []
+    # Per-run result cache so /reports/* can serve a specific run_id and
+    # the topbar's run selector actually changes the rendered report.
+    # Capped at MAX_RESULTS to bound memory; oldest entry is evicted FIFO.
+    app.state.results_by_run_id: dict[str, dict[str, Any]] = {}
     app.state.kafka_consumer: KafkaTradeConsumer | None = None
     # Disabled rule IDs (toggle-only state for now; validator still runs
     # them — wiring the skip is a backlog item once we move the rule
@@ -217,6 +223,7 @@ def _register_routes(app: FastAPI) -> None:
         result = _pseudonymize_result(result, salt)
         app.state.last_run = result
         app.state.history.append(_history_entry(result).model_dump())
+        _cache_result(app, result)
 
         return RunPipelineResponse(
             run_id=result["run_id"],
@@ -246,24 +253,30 @@ def _register_routes(app: FastAPI) -> None:
 
     # ----- Reports ----------------------------------------------------
     @app.get("/reports/business")
-    def get_business_report():
-        last = _require_last_run(app)
-        return last["business_report"]
+    def get_business_report(run_id: str | None = Query(default=None)):
+        run = _resolve_run(app, run_id)
+        return run["business_report"]
 
     @app.get("/reports/quality")
-    def get_quality_report():
-        last = _require_last_run(app)
-        return last["quality_report"]
+    def get_quality_report(run_id: str | None = Query(default=None)):
+        run = _resolve_run(app, run_id)
+        return run["quality_report"]
 
     @app.get("/reports/business/download")
-    def download_business(format: str = Query("json", pattern="^(csv|json)$")):
-        last = _require_last_run(app)
-        return _report_response(last["business_report"], "business", format)
+    def download_business(
+        format: str = Query("json", pattern="^(csv|json)$"),
+        run_id: str | None = Query(default=None),
+    ):
+        run = _resolve_run(app, run_id)
+        return _report_response(run["business_report"], "business", format)
 
     @app.get("/reports/quality/download")
-    def download_quality(format: str = Query("json", pattern="^(csv|json)$")):
-        last = _require_last_run(app)
-        return _report_response(last["quality_report"], "quality", format)
+    def download_quality(
+        format: str = Query("json", pattern="^(csv|json)$"),
+        run_id: str | None = Query(default=None),
+    ):
+        run = _resolve_run(app, run_id)
+        return _report_response(run["quality_report"], "quality", format)
 
     # ----- Audit ------------------------------------------------------
     @app.get("/audit/trades")
@@ -347,6 +360,7 @@ def _register_routes(app: FastAPI) -> None:
         result = _pseudonymize_result(result, salt)
         app.state.last_run = result
         app.state.history.append(_history_entry(result).model_dump())
+        _cache_result(app, result)
         return RunPipelineResponse(
             run_id=result["run_id"],
             started_at=result["started_at"],
@@ -487,6 +501,26 @@ def _require_last_run(app: FastAPI) -> dict[str, Any]:
     return app.state.last_run
 
 
+def _resolve_run(app: FastAPI, run_id: str | None) -> dict[str, Any]:
+    """Return the cached result for `run_id` if given, else the last run."""
+    if run_id is None:
+        return _require_last_run(app)
+    cached = app.state.results_by_run_id.get(run_id)
+    if cached is None:
+        raise HTTPException(status_code=404, detail=f"Unknown run_id: {run_id}")
+    return cached
+
+
+def _cache_result(app: FastAPI, result: dict[str, Any]) -> None:
+    """Store the full pipeline result keyed by run_id; FIFO-evict oldest."""
+    rid = result["run_id"]
+    app.state.results_by_run_id[rid] = result
+    while len(app.state.results_by_run_id) > MAX_RESULTS:
+        # Python 3.7+ dicts preserve insertion order; pop oldest.
+        oldest = next(iter(app.state.results_by_run_id))
+        del app.state.results_by_run_id[oldest]
+
+
 def _require_consumer(app: FastAPI) -> KafkaTradeConsumer:
     if app.state.kafka_consumer is None:
         raise HTTPException(
@@ -527,6 +561,7 @@ def _record_streamed_run(app: FastAPI, result: dict[str, Any]) -> None:
     result = _pseudonymize_result(result, salt)
     app.state.last_run = result
     app.state.history.append(_history_entry(result).model_dump())
+    _cache_result(app, result)
 
 
 def _history_entry(result: dict[str, Any]) -> PipelineHistoryEntry:
