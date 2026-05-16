@@ -137,16 +137,17 @@ export function Overview() {
       label: 'SCORE',
       align: 'right',
       render: (r) => {
+        const score = r.quality_score ?? 0;
         const color =
-          r.quality_score >= 80 ? '#4ade80' : r.quality_score >= 60 ? '#fbbf24' : '#f87171';
+          score >= 80 ? '#4ade80' : score >= 60 ? '#fbbf24' : '#f87171';
         return (
           <div className="inline-flex items-center gap-1.5">
             <span style={{ color, minWidth: 32, textAlign: 'right' }}>
-              {r.quality_score.toFixed(0)}
+              {fmt.fixed(r.quality_score, 0)}
             </span>
             <div style={{ width: 40, height: 4, background: 'var(--border)' }}>
               <div
-                style={{ width: `${r.quality_score}%`, height: '100%', background: color }}
+                style={{ width: `${score}%`, height: '100%', background: color }}
               />
             </div>
           </div>

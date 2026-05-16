@@ -56,7 +56,7 @@ export function Treemap({ data }: { data: Item[] }) {
             y={c.y + 30}
             style={{ fontFamily: 'IBM Plex Mono', fontSize: 10, fill: '#0a0c10' }}
           >
-            {c.d.share.toFixed(1)}% · {fmt.usd(c.d.notional)}
+            {(c.d.share ?? 0).toFixed(1)}% · {fmt.usd(c.d.notional)}
           </text>
         </g>
       ))}

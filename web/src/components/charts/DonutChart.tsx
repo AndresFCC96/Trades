@@ -7,7 +7,14 @@ type Props = { data: Item[]; colors?: string[] };
 const DEFAULT_COLORS = ['#4ade80', '#60a5fa', '#a78bfa', '#fbbf24', '#f87171', '#34d399', '#fb923c'];
 
 export function DonutChart({ data, colors = DEFAULT_COLORS }: Props) {
-  const total = data.reduce((a, b) => a + b.value, 0);
+  // Tolerate empty data / zero totals so an empty business report
+  // doesn't crash with `Cannot read 'toFixed' of undefined` further down.
+  if (data.length === 0) {
+    return (
+      <div className="py-6 text-center font-mono text-sm text-muted">— EMPTY —</div>
+    );
+  }
+  const total = data.reduce((a, b) => a + (b.value ?? 0), 0) || 1;
   let acc = 0;
   const r = 70,
     R = 90;
@@ -59,7 +66,7 @@ export function DonutChart({ data, colors = DEFAULT_COLORS }: Props) {
           >
             <span style={{ width: 10, height: 10, background: colors[i % colors.length] }} />
             <span>{d.label}</span>
-            <span className="text-muted text-right">{((d.value / total) * 100).toFixed(1)}%</span>
+            <span className="text-muted text-right">{(((d.value ?? 0) / total) * 100).toFixed(1)}%</span>
           </div>
         ))}
       </div>

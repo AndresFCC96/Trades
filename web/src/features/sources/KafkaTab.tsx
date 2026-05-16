@@ -160,7 +160,7 @@ export function KafkaTab() {
             <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
               <MetricChip
                 label="MSG/SEC"
-                value={status ? status.throughput_msgs_per_sec.toFixed(1) : '—'}
+                value={fmt.fixed(status?.throughput_msgs_per_sec, 1)}
                 color="#4ade80"
               />
               <MetricChip
@@ -184,7 +184,7 @@ export function KafkaTab() {
             <div className="flex justify-between mb-1">
               <span className="font-mono text-xs text-muted">THROUGHPUT · LAST 60s</span>
               <span className="font-mono text-xs" style={{ color: '#4ade80' }}>
-                {history.length > 0 ? history[history.length - 1].toFixed(1) : '—'} msg/s
+                {fmt.fixed(history[history.length - 1], 1)} msg/s
               </span>
             </div>
             <ThroughputChart data={history.length > 1 ? history : [0, 0]} max={Math.max(50, ...history) * 1.2} />
@@ -307,7 +307,7 @@ export function KafkaTab() {
               label="LAST QUALITY"
               value={
                 typeof status.last_batch_meta?.quality_score === 'number'
-                  ? (status.last_batch_meta.quality_score as number).toFixed(1)
+                  ? fmt.fixed(status.last_batch_meta.quality_score as number, 1)
                   : '—'
               }
             />

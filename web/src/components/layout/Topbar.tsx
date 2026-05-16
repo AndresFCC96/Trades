@@ -76,7 +76,7 @@ export function Topbar() {
             <span className="text-muted">RUN</span>
             <span>{activeRun ? fmt.short(activeRun.run_id, 18) : '— none —'}</span>
             {activeRun && (
-              <span style={{ color: '#4ade80' }}>{activeRun.quality_score.toFixed(0)}</span>
+              <span style={{ color: '#4ade80' }}>{fmt.fixed(activeRun.quality_score, 0)}</span>
             )}
             <span className="text-muted">▾</span>
           </button>
@@ -106,9 +106,11 @@ export function Topbar() {
                     <span className="text-muted text-xs">{fmt.dt(r.started_at).slice(11, 19)}</span>
                     <span
                       className="text-right"
-                      style={{ color: r.quality_score >= 80 ? '#4ade80' : '#fbbf24' }}
+                      style={{
+                        color: (r.quality_score ?? 0) >= 80 ? '#4ade80' : '#fbbf24',
+                      }}
                     >
-                      {r.quality_score.toFixed(0)}
+                      {fmt.fixed(r.quality_score, 0)}
                     </span>
                   </div>
                 ))

@@ -177,7 +177,7 @@ export function FileTab() {
             sourceId={selectedId}
             onRunSuccess={(runId, score) => {
               qc.invalidateQueries({ queryKey: ['pipeline-history'] });
-              addToast(`Run OK · ${runId.slice(0, 12)} · score ${score.toFixed(1)}`, 'ok');
+              addToast(`Run OK · ${runId.slice(0, 12)} · score ${fmt.fixed(score, 1)}`, 'ok');
               navigate({ to: '/' });
             }}
             setActiveRun={setActiveRun}

@@ -1,4 +1,6 @@
-export function ConsistencyDonut({ value }: { value: number }) {
+export function ConsistencyDonut({ value }: { value: number | null | undefined }) {
+  const v =
+    typeof value === 'number' && Number.isFinite(value) ? value : 0;
   const r = 60;
   const c = 2 * Math.PI * r;
   return (
@@ -11,7 +13,7 @@ export function ConsistencyDonut({ value }: { value: number }) {
         fill="none"
         stroke="#a78bfa"
         strokeWidth="10"
-        strokeDasharray={`${(value / 100) * c} ${c}`}
+        strokeDasharray={`${(v / 100) * c} ${c}`}
         transform="rotate(-90 75 75)"
         strokeLinecap="square"
       />
@@ -21,7 +23,7 @@ export function ConsistencyDonut({ value }: { value: number }) {
         textAnchor="middle"
         style={{ fontFamily: 'IBM Plex Mono', fontSize: 22, fill: '#a78bfa' }}
       >
-        {value.toFixed(1)}%
+        {v.toFixed(1)}%
       </text>
     </svg>
   );

@@ -110,15 +110,19 @@ export function History() {
     {
       label: 'SCORE',
       align: 'right',
-      render: (r) => (
-        <span
-          style={{
-            color: r.quality_score >= 80 ? '#4ade80' : r.quality_score >= 60 ? '#fbbf24' : '#f87171',
-          }}
-        >
-          {r.quality_score.toFixed(1)}
-        </span>
-      ),
+      render: (r) => {
+        const score = r.quality_score ?? 0;
+        return (
+          <span
+            style={{
+              color:
+                score >= 80 ? '#4ade80' : score >= 60 ? '#fbbf24' : '#f87171',
+            }}
+          >
+            {fmt.fixed(r.quality_score, 1)}
+          </span>
+        );
+      },
     },
   ];
 
@@ -236,7 +240,7 @@ function CompareModal({ runs, onClose }: { runs: Run[]; onClose: () => void }) {
               ['TRADES IN', (r: Run) => fmt.num(r.trades_in)],
               ['TRADES OUT', (r: Run) => fmt.num(r.trades_out)],
               ['REJECTED', (r: Run) => fmt.num(r.trades_in - r.trades_out)],
-              ['SCORE', (r: Run) => r.quality_score.toFixed(1)],
+              ['SCORE', (r: Run) => fmt.fixed(r.quality_score, 1)],
             ] as Array<[string, (r: Run) => string]>
           ).map(([k, fn]) => (
             <Cells key={k} label={k} fn={fn} runs={runs} />

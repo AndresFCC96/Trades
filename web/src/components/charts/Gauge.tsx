@@ -1,10 +1,13 @@
-type Props = { value: number; size?: number; label?: string };
+type Props = { value: number | null | undefined; size?: number; label?: string };
 
 export function Gauge({ value, size = 140, label = 'SCORE' }: Props) {
-  const tone = value >= 80 ? '#4ade80' : value >= 60 ? '#fbbf24' : '#f87171';
+  // Tolerant to undefined/NaN (a fresh dashboard with no run yet).
+  const v =
+    typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  const tone = v >= 80 ? '#4ade80' : v >= 60 ? '#fbbf24' : '#f87171';
   const r = size / 2 - 8;
   const c = 2 * Math.PI * r;
-  const dash = (value / 100) * c * 0.75;
+  const dash = (v / 100) * c * 0.75;
   return (
     <svg width={size} height={size}>
       <circle
@@ -34,7 +37,7 @@ export function Gauge({ value, size = 140, label = 'SCORE' }: Props) {
         textAnchor="middle"
         style={{ fontFamily: 'IBM Plex Mono', fontSize: Math.max(14, size * 0.2), fontWeight: 600, fill: tone }}
       >
-        {value.toFixed(1)}
+        {v.toFixed(1)}
       </text>
       {label && (
         <text

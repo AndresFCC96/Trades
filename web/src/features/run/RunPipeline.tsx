@@ -68,7 +68,7 @@ export function RunPipeline() {
       qc.invalidateQueries({ queryKey: ['quality-report'] });
       qc.invalidateQueries({ queryKey: ['audit-trades'] });
       addToast(
-        `Run OK · score ${res.quality_score.toFixed(1)} · ${fmt.dur(res.duration_ms)}`,
+        `Run OK · score ${fmt.fixed(res.quality_score, 1)} · ${fmt.dur(res.duration_ms)}`,
         'ok'
       );
     },
@@ -291,7 +291,7 @@ export function RunPipeline() {
                 style={{ color: '#4ade80', fontSize: 12 }}
               >
                 ✓ RUN COMPLETED · {fmt.dur(result.duration_ms)} · QUALITY{' '}
-                {result.quality_score.toFixed(1)}
+                {fmt.fixed(result.quality_score, 1)}
               </div>
               <div className="font-mono text-xs text-muted mt-1">
                 {result.run_id} · {fmt.num(result.validation_summary.total_in)} in →{' '}

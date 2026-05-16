@@ -117,26 +117,32 @@ function QualityReportContent({
     {
       label: '%',
       align: 'right',
-      render: (r) => (
-        <span style={{ color: r.pct > 5 ? '#f87171' : r.pct > 1 ? '#fbbf24' : '#4ade80' }}>
-          {r.pct.toFixed(2)}%
-        </span>
-      ),
+      render: (r) => {
+        const pct = r.pct ?? 0;
+        return (
+          <span style={{ color: pct > 5 ? '#f87171' : pct > 1 ? '#fbbf24' : '#4ade80' }}>
+            {pct.toFixed(2)}%
+          </span>
+        );
+      },
     },
     {
       label: '',
-      render: (r) => (
-        <div style={{ width: 80, height: 4, background: 'var(--border)' }}>
-          <div
-            style={{
-              width: `${Math.min(r.pct * 4, 100)}%`,
-              height: '100%',
-              background:
-                r.pct > 5 ? '#f87171' : r.pct > 1 ? '#fbbf24' : '#4ade80',
-            }}
-          />
-        </div>
-      ),
+      render: (r) => {
+        const pct = r.pct ?? 0;
+        return (
+          <div style={{ width: 80, height: 4, background: 'var(--border)' }}>
+            <div
+              style={{
+                width: `${Math.min(pct * 4, 100)}%`,
+                height: '100%',
+                background:
+                  pct > 5 ? '#f87171' : pct > 1 ? '#fbbf24' : '#4ade80',
+              }}
+            />
+          </div>
+        );
+      },
     },
   ];
 

@@ -125,7 +125,7 @@ function BusinessReportContent({
     {
       label: '%',
       align: 'right',
-      render: (r) => `${r.share.toFixed(1)}%`,
+      render: (r) => `${(r.share ?? 0).toFixed(1)}%`,
     },
   ];
 
