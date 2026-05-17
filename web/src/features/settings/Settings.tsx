@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { getSettings, putSettings } from '@/lib/api/endpoints';
+import { getSettings, persistSettings, putSettings } from '@/lib/api/endpoints';
 import { useStore } from '@/lib/store';
 
 import { Panel } from '@/components/ui/Panel';
 import { Btn } from '@/components/ui/Btn';
 import { Field, inputBoxStyle } from '@/components/ui/Field';
-import { Badge } from '@/components/ui/Badge';
 
 type Tab = 'general' | 'thresholds' | 'catalogs' | 'retention' | 'api' | 'kafka';
 
@@ -34,10 +33,11 @@ export function Settings() {
           color: '#60a5fa',
         }}
       >
-        Live editor backed by <code>GET/PUT /settings</code>. Changes apply
-        immediately to in-memory config (next run uses them). They are NOT
-        persisted to <code>config/settings.yaml</code> on disk — a server
-        restart drops the patch.
+        Live editor backed by <code>GET/PUT /settings</code>. <code>SAVE</code>{' '}
+        applies the patch in memory; <code>PERSIST</code> writes the current
+        config back to <code>config/settings.yaml</code> on disk (a{' '}
+        <code>.bak</code> backup is kept). Without PERSIST, a server restart
+        drops the patch.
       </div>
 
       <div className="flex border-b border-border">
@@ -163,6 +163,16 @@ function ThresholdsTab() {
     onError: (e) => addToast(`Save failed · ${(e as Error).message}`, 'crit'),
   });
 
+  const persistMut = useMutation({
+    mutationFn: persistSettings,
+    onSuccess: (resp) =>
+      addToast(
+        `Persisted to ${resp.target}${resp.backup ? ` (backup at ${resp.backup})` : ''}`,
+        'ok',
+      ),
+    onError: (e) => addToast(`Persist failed · ${(e as Error).message}`, 'crit'),
+  });
+
   const yaml = `validator:
   critical:
     notional_tolerance: ${notionalTol || '—'}
@@ -245,7 +255,7 @@ function ThresholdsTab() {
         >
           {yaml}
         </pre>
-        <div className="mt-2.5 flex gap-1.5 items-center">
+        <div className="mt-2.5 flex gap-1.5 items-center flex-wrap">
           <Btn
             kind="primary"
             onClick={() => saveMut.mutate()}
@@ -256,7 +266,14 @@ function ThresholdsTab() {
           <Btn onClick={onDiscard} disabled={saveMut.isPending}>
             DISCARD
           </Btn>
-          <Badge tone="info">in-memory · server restart drops</Badge>
+          <Btn
+            kind="solid"
+            onClick={() => persistMut.mutate()}
+            disabled={persistMut.isPending || isLoading}
+            title="Write the in-memory config back to config/settings.yaml on disk"
+          >
+            {persistMut.isPending ? 'PERSISTING…' : 'PERSIST TO DISK'}
+          </Btn>
         </div>
       </Panel>
     </div>

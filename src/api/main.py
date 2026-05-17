@@ -33,11 +33,13 @@ import os
 import time
 from collections import deque
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 from urllib.request import Request as UrlRequest
 from urllib.request import urlopen
 from uuid import uuid4
 
+import yaml
 from fastapi import (
     FastAPI,
     File,
@@ -67,13 +69,14 @@ from src.api.schemas import (
     RulesResponse,
     RunPipelineRequest,
     RunPipelineResponse,
+    SettingsPersistResponse,
     SettingsResponse,
     SettingsUpdateRequest,
     SourceMappingRequest,
     SourceMetadata,
     SourcePreview,
 )
-from src.audit import AuditLogger, EventType, load_config
+from src.audit import DEFAULT_CONFIG_PATH, AuditLogger, EventType, load_config
 from src.kafka_consumer import KafkaTradeConsumer, make_pipeline_callback
 from src.pipeline_runner import PipelineStageError, run_pipeline
 from src.sources import (
@@ -174,6 +177,9 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     # Disabled rule IDs. /rules toggles this set; the next pipeline run
     # (sync, upload or Kafka batch) reads it and skips those rules.
     app.state.disabled_rules: set[str] = set()
+    # Source-of-truth path for settings.yaml. Overridable in tests so
+    # `POST /settings/persist` writes to a tmp location.
+    app.state.settings_path: Path = DEFAULT_CONFIG_PATH
 
     # CORS — abierto en dev; restringir en producción vía settings.yaml
     origins = api_cfg.get("cors_origins", ["*"])
@@ -539,10 +545,49 @@ def _register_routes(app: FastAPI) -> None:
 
         Effect is immediate for any module that reads `app.state.config`
         at call time (validator, generator, audit). Not persisted to
-        `config/settings.yaml` on disk — restart drops the patch.
+        `config/settings.yaml` on disk until `POST /settings/persist`
+        is called.
         """
         _deep_merge(app.state.config, req.patch)
         return SettingsResponse(settings=copy.deepcopy(app.state.config))
+
+    @app.post("/settings/persist", response_model=SettingsPersistResponse)
+    def settings_persist() -> SettingsPersistResponse:
+        """Write the current in-memory settings back to disk.
+
+        Atomic: writes to a sibling `.tmp` file and renames into place,
+        so a crash mid-write can never leave a half-written settings
+        file. The previous file (if any) is preserved as `<name>.bak`
+        so the operator can roll back manually.
+        """
+        target: Path = app.state.settings_path
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            backup: str | None = None
+            if target.exists():
+                backup_path = target.with_suffix(target.suffix + ".bak")
+                backup_path.write_bytes(target.read_bytes())
+                backup = str(backup_path)
+            tmp = target.with_suffix(target.suffix + ".tmp")
+            with tmp.open("w", encoding="utf-8") as fh:
+                yaml.safe_dump(
+                    app.state.config,
+                    fh,
+                    default_flow_style=False,
+                    sort_keys=False,
+                    allow_unicode=True,
+                )
+            tmp.replace(target)
+            return SettingsPersistResponse(
+                persisted=True,
+                target=str(target),
+                backup=backup,
+            )
+        except OSError as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to persist settings: {e}",
+            ) from e
 
     # ----- HTTP source test connection --------------------------------
     @app.post("/sources/http/test", response_model=HttpTestResponse)

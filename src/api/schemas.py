@@ -167,6 +167,13 @@ class SettingsUpdateRequest(BaseModel):
     patch: dict[str, Any]
 
 
+class SettingsPersistResponse(BaseModel):
+    """Result of writing app.state.config back to disk."""
+    persisted: bool
+    target: str
+    backup: str | None = None
+
+
 # =====================================================================
 # Audit (paginated)
 # =====================================================================

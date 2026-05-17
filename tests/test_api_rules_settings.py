@@ -137,3 +137,57 @@ class TestSettings:
         # With absurd tolerance, very few RV-05 rejections (effectively none).
         # We just assert the run completed successfully.
         assert r.json()["validation_summary"]["total_out"] > 0
+
+
+# =====================================================================
+# /settings/persist (write-back to disk)
+# =====================================================================
+class TestSettingsPersist:
+    def test_persist_writes_yaml_to_target_path(self, cfg, tmp_path):
+        from src.api.main import create_app
+
+        target = tmp_path / "settings.yaml"
+        app = create_app(cfg)
+        # Override the disk target so the test never touches the real file.
+        app.state.settings_path = target
+        client = TestClient(app)
+
+        # Patch something distinctive and persist.
+        client.put(
+            "/settings",
+            json={"patch": {"validator": {"critical": {"notional_tolerance": 0.07}}}},
+        )
+        r = client.post("/settings/persist")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["persisted"] is True
+        assert body["target"].endswith("settings.yaml")
+        # First persist: no prior file → no backup yet.
+        assert body["backup"] is None
+
+        # Round-trip the YAML and confirm the patch is reflected.
+        import yaml
+
+        loaded = yaml.safe_load(target.read_text(encoding="utf-8"))
+        assert loaded["validator"]["critical"]["notional_tolerance"] == 0.07
+
+    def test_persist_creates_bak_when_overwriting(self, cfg, tmp_path):
+        from src.api.main import create_app
+
+        target = tmp_path / "settings.yaml"
+        # Pre-existing settings.yaml with some marker content
+        target.write_text("__previous__: true\n", encoding="utf-8")
+
+        app = create_app(cfg)
+        app.state.settings_path = target
+        client = TestClient(app)
+
+        r = client.post("/settings/persist")
+        body = r.json()
+        assert body["backup"] is not None
+        assert body["backup"].endswith(".bak")
+        # Backup carries the pre-existing content
+        bak_text = (target.parent / (target.name + ".bak")).read_text(encoding="utf-8")
+        assert "__previous__" in bak_text
+        # And the live file now has the in-memory config (no __previous__)
+        assert "__previous__" not in target.read_text(encoding="utf-8")

@@ -6,6 +6,7 @@ import { withQueryClient } from '@/test/utils';
 vi.mock('@/lib/api/endpoints', () => ({
   getSettings: vi.fn(),
   putSettings: vi.fn(),
+  persistSettings: vi.fn(),
 }));
 
 import { Settings } from './Settings';
@@ -34,7 +35,7 @@ describe('<Settings />', () => {
 
   it('renders the live-editor banner and 6 tabs', async () => {
     render(withQueryClient(<Settings />));
-    expect(screen.getByText(/Live editor backed by/i)).toBeInTheDocument();
+    expect(screen.getByText(/Live editor/i)).toBeInTheDocument();
     for (const t of [
       'GENERAL',
       'VALIDATOR THRESHOLDS',
@@ -71,5 +72,21 @@ describe('<Settings />', () => {
     render(withQueryClient(<Settings />));
     await userEvent.click(screen.getByText('API'));
     expect(screen.getByText(/Host, port, CORS/i)).toBeInTheDocument();
+  });
+
+  it('PERSIST TO DISK invokes persistSettings()', async () => {
+    (endpoints.persistSettings as ReturnType<typeof vi.fn>).mockResolvedValue({
+      persisted: true,
+      target: '/tmp/settings.yaml',
+      backup: null,
+    });
+    render(withQueryClient(<Settings />));
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('0.01')).toBeInTheDocument();
+    });
+    await userEvent.click(screen.getByRole('button', { name: /PERSIST TO DISK/i }));
+    await waitFor(() => {
+      expect(endpoints.persistSettings).toHaveBeenCalledTimes(1);
+    });
   });
 });

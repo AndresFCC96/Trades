@@ -119,6 +119,11 @@ export const patchRule = (ruleId: string, enabled: boolean) =>
 export const getSettings = () => request<SettingsResponse>('/settings');
 export const putSettings = (patch: Record<string, unknown>) =>
   request<SettingsResponse>('/settings', { method: 'PUT', body: { patch } });
+export const persistSettings = () =>
+  request<{ persisted: boolean; target: string; backup: string | null }>(
+    '/settings/persist',
+    { method: 'POST' },
+  );
 
 // ----- HTTP source test connection -----------------------------------
 export const testHttpEndpoint = (body: HttpTestRequest) =>
