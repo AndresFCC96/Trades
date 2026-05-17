@@ -9,6 +9,11 @@ vi.mock('@/lib/api/endpoints', () => ({
   patchRule: vi.fn(),
 }));
 
+const navigateSpy = vi.fn();
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigateSpy,
+}));
+
 import { Rules } from './Rules';
 import * as endpoints from '@/lib/api/endpoints';
 import { useStore } from '@/lib/store';
@@ -87,5 +92,29 @@ describe('<Rules />', () => {
     });
     expect(useStore.getState().toasts.length).toBeGreaterThanOrEqual(1);
     expect(useStore.getState().toasts[0].tone).toBe('ok');
+  });
+
+  it('clicking VIEW REJECTED navigates to /audit/trades with rule_id query', async () => {
+    (endpoints.getRules as ReturnType<typeof vi.fn>).mockResolvedValue(sampleRules);
+    (endpoints.getAuditTrades as ReturnType<typeof vi.fn>).mockResolvedValue({
+      events: [],
+      total: 0,
+      limit: 10_000,
+      offset: 0,
+    });
+    navigateSpy.mockClear();
+    render(withQueryClient(<Rules />));
+
+    await waitFor(() => {
+      expect(screen.getByText('RV-01')).toBeInTheDocument();
+    });
+    // 14 RuleCards → 14 "VIEW REJECTED →" buttons; click the first.
+    const buttons = screen.getAllByRole('button', { name: /VIEW REJECTED/i });
+    await userEvent.click(buttons[0]);
+
+    expect(navigateSpy).toHaveBeenCalledWith({
+      to: '/audit/trades',
+      search: { rule_id: 'RV-01' },
+    });
   });
 });

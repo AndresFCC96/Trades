@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearch } from '@tanstack/react-router';
 
 import { getAuditTrades } from '@/lib/api/endpoints';
 import { fmt } from '@/lib/fmt';
@@ -15,9 +16,19 @@ import { downloadCsv, downloadJson } from './exportRows';
 const PAGE_SIZE = 50;
 
 export function AuditTrades() {
+  // Read `?rule_id=` so deep-links from the Rules screen pre-populate
+  // the dropdown without needing a separate state-passing mechanism.
+  const search = useSearch({ from: '/audit/trades' }) as { rule_id?: string };
   const [filter, setFilter] = useState('');
-  const [ruleFilter, setRuleFilter] = useState<string>('all');
+  const [ruleFilter, setRuleFilter] = useState<string>(search.rule_id ?? 'all');
   const [page, setPage] = useState(0);
+
+  // Keep the URL and the dropdown in sync: if the user navigates here
+  // again with a different rule_id query, refresh the local state.
+  useEffect(() => {
+    setRuleFilter(search.rule_id ?? 'all');
+    setPage(0);
+  }, [search.rule_id]);
 
   // Server-side filter + pagination.
   const { data: pageData, isLoading } = useQuery({

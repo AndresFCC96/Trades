@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 
 import { getAuditTrades, getRules, patchRule } from '@/lib/api/endpoints';
 import { fmt } from '@/lib/fmt';
@@ -15,6 +16,7 @@ import { RULES as FALLBACK_RULES, GROUP_META, type RuleDef, type RuleGroup } fro
 
 export function Rules() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const addToast = useStore((s) => s.addToast);
   const [openGroups, setOpenGroups] = useState<Record<RuleGroup, boolean>>({
     critical: true,
@@ -139,6 +141,12 @@ export function Rules() {
                       rejected={counts.get(r.id) ?? 0}
                       enabled={r.enabled}
                       onToggle={() => onToggle(r.id, r.enabled)}
+                      onViewRejected={() =>
+                        navigate({
+                          to: '/audit/trades',
+                          search: { rule_id: r.id },
+                        })
+                      }
                     />
                   ))}
                 </div>
@@ -167,11 +175,13 @@ function RuleCard({
   rejected,
   enabled,
   onToggle,
+  onViewRejected,
 }: {
   rule: RuleDef;
   rejected: number;
   enabled: boolean;
   onToggle: () => void;
+  onViewRejected: () => void;
 }) {
   const color = COLOR_BY_GROUP[rule.group];
   // Synthetic 12-point trend so the sparkline isn't empty; real trend
@@ -219,7 +229,7 @@ function RuleCard({
       </div>
       <div className="mt-2.5 flex justify-between items-center">
         <span className="font-mono text-[9px] text-muted">{rule.threshold}</span>
-        <Btn>VIEW REJECTED →</Btn>
+        <Btn onClick={onViewRejected}>VIEW REJECTED →</Btn>
       </div>
     </div>
   );
