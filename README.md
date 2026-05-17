@@ -120,15 +120,45 @@ pytest --cov=src --cov-report=html       # coverage HTML report
 
 ## CI/CD
 
-On every push to `main`/`dev` and every PR, GitHub Actions runs:
+On every push to `main`/`dev` and every PR, GitHub Actions runs 7 jobs:
 
 1. **Lint** with ruff (E, F, B, S, N, UP rule sets)
 2. **Tests** with pytest + coverage (≥ 75% required)
 3. **Bandit** SAST + SARIF upload to GitHub Code Scanning
 4. **Semgrep** with `p/python`, `p/security-audit`, `p/owasp-top-ten`
-5. **Docker build** smoke test
+5. **Web** — `tsc --noEmit` + Vitest for the `web/` dashboard
+6. **Docker build** smoke test
+7. **E2E** Playwright smoke flows against a live uvicorn + Vite
 
 Coverage is uploaded to Codecov on every run; see the badge at the top.
+
+### Running the same checks on Jenkins
+
+A [`Jenkinsfile`](Jenkinsfile) at the repo root mirrors the seven GitHub
+Actions jobs as a declarative pipeline. Each stage runs in its own Docker
+image (`python:3.12-slim`, `node:20-bullseye`, `returntocorp/semgrep`,
+`mcr.microsoft.com/playwright`) so the build is hermetic.
+
+**One-time controller setup:**
+
+1. Install the plugins: `docker-workflow`, `git`, `credentials-binding`,
+   and `htmlpublisher` (optional, for the rendered Playwright report).
+2. The build node must have a Docker daemon (the `Docker build smoke test`
+   stage mounts `/var/run/docker.sock`).
+3. Add a **Secret text** credential with ID `codecov-token` if you want
+   coverage uploaded to Codecov. Without it, the upload step is a no-op.
+
+**Hooking up the repo:**
+
+- *Multibranch Pipeline* job → point at this repository, leave the script
+  path as `Jenkinsfile` (default). Jenkins will scan branches and PRs on a
+  schedule or webhook.
+- *Pipeline from SCM* job → if you prefer a single job, set Definition to
+  "Pipeline script from SCM", repository URL, branch `dev`, script path
+  `Jenkinsfile`.
+
+The GitHub Actions workflow stays in place; both pipelines can run on the
+same commit until you decide which is the source of truth.
 
 ## Security
 
