@@ -58,6 +58,12 @@ from src.api.schemas import (
     HealthResponse,
     HttpTestRequest,
     HttpTestResponse,
+    JenkinsBuildResponse,
+    JenkinsConsoleResponse,
+    JenkinsHealth,
+    JenkinsJobDetail,
+    JenkinsJobsResponse,
+    JenkinsStopResponse,
     KafkaCluster,
     KafkaClustersResponse,
     KafkaClusterUpsertRequest,
@@ -77,6 +83,7 @@ from src.api.schemas import (
     SourcePreview,
 )
 from src.audit import DEFAULT_CONFIG_PATH, AuditLogger, EventType, load_config
+from src.jenkins_client import JenkinsClient, JenkinsError
 from src.kafka_consumer import KafkaTradeConsumer, make_pipeline_callback
 from src.pipeline_runner import PipelineStageError, run_pipeline
 from src.sources import (
@@ -180,6 +187,10 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     # Source-of-truth path for settings.yaml. Overridable in tests so
     # `POST /settings/persist` writes to a tmp location.
     app.state.settings_path: Path = DEFAULT_CONFIG_PATH
+    # Cached Jenkins client. Built lazily so tests can override the
+    # factory via `app.state.jenkins_factory` before the first call.
+    app.state.jenkins_client: JenkinsClient | None = None
+    app.state.jenkins_factory: Any = None
 
     # CORS — abierto en dev; restringir en producción vía settings.yaml
     origins = api_cfg.get("cors_origins", ["*"])
@@ -718,6 +729,140 @@ def _register_routes(app: FastAPI) -> None:
         )
         return KafkaStatusResponse(**app.state.kafka_consumer.get_status())
 
+    # ----- Jenkins integration ----------------------------------------
+    @app.get("/jenkins/health", response_model=JenkinsHealth)
+    def jenkins_health() -> JenkinsHealth:
+        cfg = app.state.config.get("jenkins", {})
+        if not cfg.get("enabled", False):
+            return JenkinsHealth(
+                enabled=False,
+                url=str(cfg.get("url", "")),
+                error="Jenkins integration disabled in settings.yaml",
+            )
+        client = _jenkins_client(app)
+        try:
+            info = client.get_info()
+            jobs = info.get("jobs", [])
+            building = sum(
+                1 for j in jobs if (j.get("color") or "").endswith("_anime")
+            )
+            return JenkinsHealth(
+                enabled=True,
+                url=str(cfg.get("url", "")),
+                version=info.get("version"),
+                node_count=len(info.get("assignedLabels", [])) or None,
+                jobs_total=len(jobs),
+                building_total=building,
+            )
+        except JenkinsError as e:
+            return JenkinsHealth(
+                enabled=True,
+                url=str(cfg.get("url", "")),
+                error=str(e),
+            )
+
+    @app.get("/jenkins/jobs", response_model=JenkinsJobsResponse)
+    def jenkins_jobs() -> JenkinsJobsResponse:
+        client = _jenkins_client(app)
+        try:
+            return JenkinsJobsResponse(jobs=client.list_jobs())
+        except JenkinsError as e:
+            raise HTTPException(
+                status_code=e.status_code or 502, detail=str(e)
+            ) from e
+
+    @app.get("/jenkins/jobs/{name}", response_model=JenkinsJobDetail)
+    def jenkins_job_detail(name: str) -> JenkinsJobDetail:
+        client = _jenkins_client(app)
+        try:
+            return JenkinsJobDetail(job=client.get_job(name))
+        except JenkinsError as e:
+            raise HTTPException(
+                status_code=e.status_code or 502, detail=str(e)
+            ) from e
+
+    @app.post(
+        "/jenkins/jobs/{name}/build",
+        response_model=JenkinsBuildResponse,
+        status_code=201,
+    )
+    def jenkins_job_build(name: str) -> JenkinsBuildResponse:
+        client = _jenkins_client(app)
+        try:
+            result = client.build_job(name)
+        except JenkinsError as e:
+            raise HTTPException(
+                status_code=e.status_code or 502, detail=str(e)
+            ) from e
+        return JenkinsBuildResponse(**result)
+
+    @app.post(
+        "/jenkins/jobs/{name}/builds/{number}/stop",
+        response_model=JenkinsStopResponse,
+    )
+    def jenkins_build_stop(name: str, number: int) -> JenkinsStopResponse:
+        client = _jenkins_client(app)
+        try:
+            result = client.stop_build(name, number)
+        except JenkinsError as e:
+            raise HTTPException(
+                status_code=e.status_code or 502, detail=str(e)
+            ) from e
+        return JenkinsStopResponse(**result)
+
+    @app.get(
+        "/jenkins/jobs/{name}/builds/{number}/log",
+        response_model=JenkinsConsoleResponse,
+    )
+    def jenkins_build_log(
+        name: str,
+        number: int,
+        start: int = Query(default=0, ge=0),
+    ) -> JenkinsConsoleResponse:
+        client = _jenkins_client(app)
+        try:
+            return JenkinsConsoleResponse(**client.get_console(name, number, start))
+        except JenkinsError as e:
+            raise HTTPException(
+                status_code=e.status_code or 502, detail=str(e)
+            ) from e
+
+    @app.websocket("/ws/jenkins/jobs/{name}/builds/{number}/log")
+    async def jenkins_log_ws(
+        websocket: WebSocket, name: str, number: int
+    ) -> None:
+        """Push the console output progressively (start offset advances).
+
+        Polls Jenkins every 1.5s. Closes when `more=False` so the UI knows
+        the build finished, or on client disconnect.
+        """
+        await websocket.accept()
+        try:
+            client = _jenkins_client(app)
+        except HTTPException as e:
+            await websocket.send_json({"error": str(e.detail)})
+            await websocket.close(code=1011)
+            return
+        start = 0
+        try:
+            while True:
+                page = client.get_console(name, number, start)
+                if page["text"]:
+                    await websocket.send_json(page)
+                start = page["next_start"]
+                if not page["more"]:
+                    await websocket.send_json({"done": True})
+                    break
+                await asyncio.sleep(1.5)
+        except WebSocketDisconnect:
+            return
+        except JenkinsError as e:
+            try:
+                await websocket.send_json({"error": str(e)})
+                await websocket.close(code=1011)
+            except Exception:  # noqa: BLE001 — best-effort cleanup
+                logger.exception("ws/jenkins/log close failed")
+
     @app.websocket("/ws/kafka/trades")
     async def kafka_trades_ws(websocket: WebSocket) -> None:
         """Push individual trades as they arrive on the consumer.
@@ -782,6 +927,31 @@ def _resolve_run(app: FastAPI, run_id: str | None) -> dict[str, Any]:
     if cached is None:
         raise HTTPException(status_code=404, detail=f"Unknown run_id: {run_id}")
     return cached
+
+
+def _jenkins_client(app: FastAPI) -> JenkinsClient:
+    """Lazily build (and cache) the Jenkins client used by /jenkins/*.
+
+    Tests can pre-populate `app.state.jenkins_client` or
+    `app.state.jenkins_factory` to inject a fake.
+    """
+    cfg = app.state.config.get("jenkins", {})
+    if not cfg.get("enabled", False):
+        raise HTTPException(
+            status_code=503,
+            detail="Jenkins integration is disabled in settings.yaml",
+        )
+    if app.state.jenkins_client is None:
+        try:
+            if app.state.jenkins_factory is not None:
+                app.state.jenkins_client = app.state.jenkins_factory()
+            else:
+                app.state.jenkins_client = JenkinsClient(app.state.config)
+        except JenkinsError as e:
+            raise HTTPException(
+                status_code=e.status_code or 502, detail=str(e)
+            ) from e
+    return app.state.jenkins_client
 
 
 def _broadcast_trade(app: FastAPI, payload: dict[str, Any]) -> None:

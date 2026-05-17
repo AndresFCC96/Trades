@@ -175,6 +175,45 @@ class SettingsPersistResponse(BaseModel):
 
 
 # =====================================================================
+# Jenkins integration
+# =====================================================================
+class JenkinsHealth(BaseModel):
+    """Subset of `GET /api/json` the dashboard renders."""
+    enabled: bool
+    url: str = ""
+    version: str | None = None
+    node_count: int | None = None
+    jobs_total: int | None = None
+    building_total: int | None = None
+    error: str | None = None
+
+
+class JenkinsJobsResponse(BaseModel):
+    jobs: list[dict[str, Any]]
+
+
+class JenkinsJobDetail(BaseModel):
+    job: dict[str, Any]
+
+
+class JenkinsBuildResponse(BaseModel):
+    queued: bool
+    queue_url: str | None = None
+
+
+class JenkinsStopResponse(BaseModel):
+    stopped: bool
+    job: str
+    build: int
+
+
+class JenkinsConsoleResponse(BaseModel):
+    text: str
+    next_start: int
+    more: bool
+
+
+# =====================================================================
 # Audit (paginated)
 # =====================================================================
 class AuditPage(BaseModel):

@@ -235,3 +235,17 @@ sources:
   max_upload_mb: 200
   preview_rows: 50
   allowed_extensions: [".csv", ".xlsx", ".xls", ".parquet"]
+
+# ---------------------------------------------------------------------
+# Jenkins integration (src/jenkins_client.py)
+# Optional: when `enabled: false` the /jenkins/* endpoints return a 503
+# "not configured" so the dashboard renders a clean empty state.
+# ---------------------------------------------------------------------
+jenkins:
+  enabled: false                          # set true once URL + creds are set
+  url: "http://localhost:8080"
+  username_env: "JENKINS_USER"            # basic-auth user (or API token user)
+  token_env: "JENKINS_TOKEN"              # API token (preferred over a password)
+  timeout_seconds: 10
+  builds_per_job: 20                      # how many recent builds to surface
+  console_tail_kb: 64                     # console payload cap per fetch

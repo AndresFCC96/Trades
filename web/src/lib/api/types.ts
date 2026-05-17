@@ -237,3 +237,51 @@ export type KafkaClusterUpsertRequest = {
   group_id: string;
   security_protocol?: 'PLAINTEXT' | 'SSL' | 'SASL_PLAINTEXT' | 'SASL_SSL';
 };
+
+// ----- Jenkins integration --------------------------------------------
+export type JenkinsHealth = {
+  enabled: boolean;
+  url: string;
+  version: string | null;
+  node_count: number | null;
+  jobs_total: number | null;
+  building_total: number | null;
+  error: string | null;
+};
+
+export type JenkinsBuildSummary = {
+  number: number;
+  result: string | null;
+  timestamp: number;
+  duration: number;
+  building: boolean;
+  url?: string;
+};
+
+export type JenkinsJob = {
+  name: string;
+  url: string;
+  color: string;
+  buildable: boolean;
+  inQueue: boolean;
+  lastBuild?: JenkinsBuildSummary | null;
+  lastSuccessfulBuild?: { number: number; timestamp: number } | null;
+  lastFailedBuild?: { number: number; timestamp: number } | null;
+};
+
+export type JenkinsJobDetail = {
+  job: {
+    name: string;
+    url: string;
+    color: string;
+    description?: string;
+    builds: JenkinsBuildSummary[];
+    [key: string]: unknown;
+  };
+};
+
+export type JenkinsConsole = {
+  text: string;
+  next_start: number;
+  more: boolean;
+};

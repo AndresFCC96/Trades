@@ -2,7 +2,7 @@ export type NavItem = {
   id: string;
   label: string;
   icon: string;
-  section: 1 | 2 | 3 | 4;
+  section: 1 | 2 | 3 | 4 | 5;
   to: string;
   parent?: string;
 };
@@ -21,12 +21,15 @@ export const NAV: NavItem[] = [
   { id: 'audit-access', label: 'Audit · Access', icon: '⊟', section: 3, parent: 'audit', to: '/audit/access' },
   { id: 'history', label: 'History', icon: '◷', section: 3, to: '/history' },
 
-  { id: 'settings', label: 'Settings', icon: '⚙', section: 4, to: '/settings' },
+  { id: 'jenkins', label: 'Jenkins', icon: '⟳', section: 4, to: '/jenkins' },
+
+  { id: 'settings', label: 'Settings', icon: '⚙', section: 5, to: '/settings' },
 ];
 
 export const SECTION_LABELS: Record<number, string> = {
   1: 'MAIN',
   2: 'ANALYSIS',
   3: 'AUDIT',
-  4: 'SYSTEM',
+  4: 'CI',
+  5: 'SYSTEM',
 };

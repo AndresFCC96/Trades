@@ -13,6 +13,7 @@ import { Route as SourcesRouteImport } from './routes/sources'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RunRouteImport } from './routes/run'
 import { Route as RulesRouteImport } from './routes/rules'
+import { Route as JenkinsRouteImport } from './routes/jenkins'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReportsQualityRouteImport } from './routes/reports.quality'
@@ -39,6 +40,11 @@ const RunRoute = RunRouteImport.update({
 const RulesRoute = RulesRouteImport.update({
   id: '/rules',
   path: '/rules',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JenkinsRoute = JenkinsRouteImport.update({
+  id: '/jenkins',
+  path: '/jenkins',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HistoryRoute = HistoryRouteImport.update({
@@ -80,6 +86,7 @@ const AuditAccessRoute = AuditAccessRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
+  '/jenkins': typeof JenkinsRoute
   '/rules': typeof RulesRoute
   '/run': typeof RunRoute
   '/settings': typeof SettingsRoute
@@ -93,6 +100,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
+  '/jenkins': typeof JenkinsRoute
   '/rules': typeof RulesRoute
   '/run': typeof RunRoute
   '/settings': typeof SettingsRoute
@@ -107,6 +115,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
+  '/jenkins': typeof JenkinsRoute
   '/rules': typeof RulesRoute
   '/run': typeof RunRoute
   '/settings': typeof SettingsRoute
@@ -122,6 +131,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/history'
+    | '/jenkins'
     | '/rules'
     | '/run'
     | '/settings'
@@ -135,6 +145,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/history'
+    | '/jenkins'
     | '/rules'
     | '/run'
     | '/settings'
@@ -148,6 +159,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/history'
+    | '/jenkins'
     | '/rules'
     | '/run'
     | '/settings'
@@ -162,6 +174,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   HistoryRoute: typeof HistoryRoute
+  JenkinsRoute: typeof JenkinsRoute
   RulesRoute: typeof RulesRoute
   RunRoute: typeof RunRoute
   SettingsRoute: typeof SettingsRoute
@@ -201,6 +214,13 @@ declare module '@tanstack/react-router' {
       path: '/rules'
       fullPath: '/rules'
       preLoaderRoute: typeof RulesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jenkins': {
+      id: '/jenkins'
+      path: '/jenkins'
+      fullPath: '/jenkins'
+      preLoaderRoute: typeof JenkinsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/history': {
@@ -258,6 +278,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   HistoryRoute: HistoryRoute,
+  JenkinsRoute: JenkinsRoute,
   RulesRoute: RulesRoute,
   RunRoute: RunRoute,
   SettingsRoute: SettingsRoute,

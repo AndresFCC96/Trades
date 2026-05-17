@@ -19,6 +19,10 @@ import type {
   KafkaClusterUpsertRequest,
   HttpTestRequest,
   HttpTestResponse,
+  JenkinsHealth,
+  JenkinsJob,
+  JenkinsJobDetail,
+  JenkinsConsole,
   AuditPage,
   AuditTradesFilters,
   AuditPipelineFilters,
@@ -138,3 +142,24 @@ export const deleteKafkaCluster = (id: string) =>
   request<void>(`/kafka/clusters/${id}`, { method: 'DELETE' });
 export const useKafkaCluster = (id: string) =>
   request<KafkaStatus>(`/kafka/clusters/${id}/use`, { method: 'POST' });
+
+// ----- Jenkins integration -------------------------------------------
+export const getJenkinsHealth = () => request<JenkinsHealth>('/jenkins/health');
+export const listJenkinsJobs = () =>
+  request<{ jobs: JenkinsJob[] }>('/jenkins/jobs');
+export const getJenkinsJob = (name: string) =>
+  request<JenkinsJobDetail>(`/jenkins/jobs/${encodeURIComponent(name)}`);
+export const buildJenkinsJob = (name: string) =>
+  request<{ queued: boolean; queue_url: string | null }>(
+    `/jenkins/jobs/${encodeURIComponent(name)}/build`,
+    { method: 'POST' },
+  );
+export const stopJenkinsBuild = (name: string, number: number) =>
+  request<{ stopped: boolean; job: string; build: number }>(
+    `/jenkins/jobs/${encodeURIComponent(name)}/builds/${number}/stop`,
+    { method: 'POST' },
+  );
+export const getJenkinsConsole = (name: string, number: number, start = 0) =>
+  request<JenkinsConsole>(
+    `/jenkins/jobs/${encodeURIComponent(name)}/builds/${number}/log?start=${start}`,
+  );

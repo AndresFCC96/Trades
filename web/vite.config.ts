@@ -21,6 +21,7 @@ export default defineConfig({
       '/audit': 'http://localhost:8001',
       '/sources': 'http://localhost:8001',
       '/kafka': 'http://localhost:8001',
+      '/jenkins': 'http://localhost:8001',
       '/health': 'http://localhost:8001',
       '/ws': { target: 'ws://localhost:8001', ws: true },
     },
