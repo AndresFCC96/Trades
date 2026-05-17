@@ -77,6 +77,55 @@ class TestHaltOnError:
 
 
 # =====================================================================
+# dlq-on-error: a bad payload is routed to outputs/audit/dlq.jsonl
+# =====================================================================
+class TestDlqOnError:
+    def test_bad_payload_lands_in_dlq_file(self, cfg, tmp_path):
+        cfg["kafka"]["buffer"]["on_error"] = "dlq"
+        c = KafkaTradeConsumer(cfg, on_batch=lambda df: {})
+
+        class _Msg:
+            value = b"this is not json"
+
+        # No raise — the consumer absorbs the error and writes a record.
+        c._ingest_message(_Msg())
+        c._ingest_message(_Msg())
+
+        status = c.get_status()
+        assert status["errors_total"] == 2
+        assert status["dlq_total"] == 2
+
+        # File exists with two lines, each parseable.
+        import json as _json
+        from pathlib import Path
+
+        dlq_path = Path(cfg["audit"]["output_dir"]) / "dlq.jsonl"
+        assert dlq_path.exists()
+        lines = dlq_path.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 2
+        for line in lines:
+            record = _json.loads(line)
+            assert "timestamp_utc" in record
+            assert "error" in record
+            assert record["raw_payload"] == "this is not json"
+
+    def test_skip_does_not_write_dlq_file(self, cfg):
+        cfg["kafka"]["buffer"]["on_error"] = "skip"
+        c = KafkaTradeConsumer(cfg, on_batch=lambda df: {})
+
+        class _Msg:
+            value = b"bad"
+
+        c._ingest_message(_Msg())
+
+        from pathlib import Path
+
+        dlq_path = Path(cfg["audit"]["output_dir"]) / "dlq.jsonl"
+        assert not dlq_path.exists()
+        assert c.get_status()["dlq_total"] == 0
+
+
+# =====================================================================
 # _build_consumer SASL branch (real AIOKafkaConsumer mocked out)
 # =====================================================================
 @pytest.mark.skipif(

@@ -135,6 +135,7 @@ export type KafkaStatus = {
   last_error: string | null;
   bootstrap_servers: string;
   topic: string;
+  dlq_total?: number;
 };
 
 export type KafkaConnectRequest = {

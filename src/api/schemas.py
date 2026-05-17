@@ -129,6 +129,7 @@ class KafkaStatusResponse(BaseModel):
     last_error: str | None = None
     bootstrap_servers: str = ""
     topic: str = ""
+    dlq_total: int = 0
 
 
 # =====================================================================

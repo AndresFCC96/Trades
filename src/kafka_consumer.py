@@ -33,6 +33,7 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 import polars as pl
@@ -80,6 +81,9 @@ class ConsumerStats:
     last_error: str | None = None
     bootstrap_servers: str = ""
     topic: str = ""
+    # Count of malformed messages routed to the DLQ JSONL file when
+    # buffer.on_error == "dlq".
+    dlq_total: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -107,6 +111,14 @@ class KafkaTradeConsumer:
         self.on_batch = on_batch
         self.on_ingest = on_ingest
         self._consumer_factory = consumer_factory
+
+        # DLQ path is colocated with the audit JSONLs so operators have
+        # a single output_dir to mount/persist. The actual `dlq.jsonl`
+        # filename is fixed; `kafka.buffer.dlq_topic` from settings.yaml
+        # is still surfaced in the API status payload (UI label) but
+        # isn't published to Kafka — that's a future enhancement.
+        audit_dir = config.get("audit", {}).get("output_dir", "outputs/audit")
+        self._dlq_path = Path(audit_dir) / "dlq.jsonl"
 
         self._buffer: list[dict[str, Any]] = []
         self._last_flush_at: float = time.monotonic()
@@ -227,8 +239,9 @@ class KafkaTradeConsumer:
     # =================================================================
     def _ingest_message(self, msg: Any) -> None:
         on_error = self.buffer_cfg.get("on_error", "skip")
+        raw_value = getattr(msg, "value", None)
         try:
-            payload = msg.value
+            payload = raw_value
             if isinstance(payload, bytes):
                 payload = payload.decode("utf-8")
             if isinstance(payload, str):
@@ -247,8 +260,38 @@ class KafkaTradeConsumer:
             self.stats.errors_total += 1
             self.stats.last_error = str(e)
             logger.warning("kafka.consumer.parse_error: %s", e)
-            if on_error == "halt":
+            if on_error == "dlq":
+                self._write_dlq(raw_value, str(e))
+            elif on_error == "halt":
                 raise
+
+    def _write_dlq(self, raw_value: Any, error: str) -> None:
+        """Append a JSON line describing the rejected message to the DLQ file.
+
+        Best-effort: a write failure here is logged but doesn't raise,
+        otherwise a corrupt FS would cascade into halting the stream.
+        """
+        try:
+            self._dlq_path.parent.mkdir(parents=True, exist_ok=True)
+            # Render bytes as a utf-8 string with `replace` so we never
+            # explode on invalid encodings; serialize a string-safe view.
+            if isinstance(raw_value, bytes):
+                view = raw_value.decode("utf-8", errors="replace")
+            elif raw_value is None:
+                view = ""
+            else:
+                view = str(raw_value)
+            record = {
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                "error": error,
+                "raw_payload": view,
+                "topic": str(self.cfg.get("topic", "")),
+            }
+            with self._dlq_path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record) + "\n")
+            self.stats.dlq_total += 1
+        except Exception:  # noqa: BLE001
+            logger.exception("kafka.consumer.dlq_write_failed")
 
     async def _flush(self, reason: str) -> None:
         if not self._buffer:

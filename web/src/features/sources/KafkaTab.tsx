@@ -178,6 +178,13 @@ export function KafkaTab() {
                 value={status ? fmt.num(status.errors_total) : '—'}
                 color={status && status.errors_total > 0 ? '#f87171' : '#4ade80'}
               />
+              {status && (status.dlq_total ?? 0) > 0 && (
+                <MetricChip
+                  label="DLQ"
+                  value={fmt.num(status.dlq_total ?? 0)}
+                  color="#fbbf24"
+                />
+              )}
             </div>
           </div>
           <div className="border-t border-border-soft pt-2.5">
@@ -245,7 +252,7 @@ export function KafkaTab() {
               {(
                 [
                   ['skip', 'SKIP MESSAGE'],
-                  ['dlq', 'DEAD LETTER QUEUE (backlog)'],
+                  ['dlq', 'DEAD LETTER QUEUE'],
                   ['halt', 'HALT STREAM'],
                 ] as Array<[OnError, string]>
               ).map(([id, l]) => (
